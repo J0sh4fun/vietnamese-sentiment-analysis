@@ -1,0 +1,13 @@
+# Virtual environment
+.venv/
+
+# Python autocompiler file
+__pycache__/
+*.pyc
+
+# IDE config
+.idea/
+.vscode/
+
+# Temp file that runs the code
+tempCodeRunnerFile.py

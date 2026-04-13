@@ -1,6 +1,129 @@
 import re
 import unicodedata
 from underthesea import word_tokenize
+from functools import lru_cache
+
+VOWELS = "aăâeêioôơuưy"
+    
+TONE_TABLE = {
+    "a": ["a", "á", "à", "ả", "ã", "ạ"],
+    "ă": ["ă", "ắ", "ằ", "ẳ", "ẵ", "ặ"],
+    "â": ["â", "ấ", "ầ", "ẩ", "ẫ", "ậ"],
+    "e": ["e", "é", "è", "ẻ", "ẽ", "ẹ"],
+    "ê": ["ê", "ế", "ề", "ể", "ễ", "ệ"],
+    "i": ["i", "í", "ì", "ỉ", "ĩ", "ị"],
+    "o": ["o", "ó", "ò", "ỏ", "õ", "ọ"],
+    "ô": ["ô", "ố", "ồ", "ổ", "ỗ", "ộ"],
+    "ơ": ["ơ", "ớ", "ờ", "ở", "ỡ", "ợ"],
+    "u": ["u", "ú", "ù", "ủ", "ũ", "ụ"],
+    "ư": ["ư", "ứ", "ừ", "ử", "ữ", "ự"],
+    "y": ["y", "ý", "ỳ", "ỷ", "ỹ", "ỵ"]
+}
+
+REVERSE_TONE = {}
+for base, forms in TONE_TABLE.items():
+    for idx, char in enumerate(forms):
+        REVERSE_TONE[char] = (base, idx)
+
+def find_tone_position(chars, vowel_indices):
+    """
+    Determines the correct index to place the tone mark within a Vietnamese syllable.
+
+    Follows standard Vietnamese orthography rules to handle specific vowel 
+    combinations and ending consonants.
+
+    Args:
+        chars (list of str): A list of characters forming the syllable.
+        vowel_indices (list of int): The position indices of vowels in the syllable.
+
+    Returns:
+        int: The correct index in the 'chars' list where the tone should be applied.
+    """
+    vowels = [chars[i] for i in vowel_indices]
+
+    # Rule 1: Prioritize e, o, ơ
+    for i in vowel_indices:
+        if chars[i] in ["ê", "ô", "ơ"]:
+            return i
+
+    # Rule 2: 3 vowels
+    if len(vowel_indices) == 3:
+        v1, v2, v3 = vowels
+        if v3 in ["i", "y"]:
+            pair = v1 + v2
+            if pair in ["oa", "oe", "uy"]:
+                return vowel_indices[1]
+            return vowel_indices[0]
+        return vowel_indices[1]
+
+    # Rule 3: 2 vowels
+    if len(vowel_indices) == 2:
+        has_final = chars[-1] not in VOWELS
+        if has_final:
+            return vowel_indices[1]
+        else:
+            return vowel_indices[0]
+
+    return vowel_indices[0]
+
+lru_cache(maxsize=50000)
+def normalize_word_tone(word):
+    """
+    Standardizes the tone placement for a single word or syllable.
+
+    Args:
+        word (str): The raw input syllable.
+
+    Returns:
+        str: The syllable with the tone mark shifted to the linguistically 
+            correct position. If no tones are detected or it's a special token, 
+            returns the original word.
+    """
+    if all(c not in REVERSE_TONE for c in word):
+        return word
+
+    if word.startswith("<") and word.endswith(">"):
+        return word
+
+    tone = 0
+    vowel_indices = []
+    chars = []
+
+    for i, c in enumerate(word):
+        lower_c = c 
+
+        if lower_c in REVERSE_TONE:
+            base, tone_idx = REVERSE_TONE[lower_c]
+            if tone == 0 and tone_idx != 0:
+                tone = tone_idx
+            chars.append(base)
+            if base in VOWELS:
+                vowel_indices.append(i)
+        else:
+            chars.append(lower_c)
+            if lower_c in VOWELS:
+                vowel_indices.append(i)
+
+    if not vowel_indices:
+        return word
+
+    # Process the exceptions: qu, gi
+    if len(chars) >= 2:
+        if chars[0] == "q" and chars[1] == "u":
+            vowel_indices = [i for i in vowel_indices if i != 1]
+        if chars[0] == "g" and chars[1] == "i":
+            vowel_indices = [i for i in vowel_indices if i != 1]
+
+    if not vowel_indices:
+        return word
+
+    pos = find_tone_position(chars, vowel_indices)
+    base_char = chars[pos]
+    
+    if base_char in TONE_TABLE:
+        chars[pos] = TONE_TABLE[base_char][tone]
+
+    return "".join(chars)
 
 class VietnameseTextProcessor:
     """
@@ -9,24 +132,8 @@ class VietnameseTextProcessor:
     This class handels noise removal (HTML tags), text masking(URLs, emails, phone numbers),
     Unicode normalization (NFC), word segmentation, tone normalization, and stopword filtering.
     """
-    VOWELS = "aăâeêioôơuưy"
-    
-    TONE_TABLE = {
-        "a": ["a", "á", "à", "ả", "ã", "ạ"],
-        "ă": ["ă", "ắ", "ằ", "ẳ", "ẵ", "ặ"],
-        "â": ["â", "ấ", "ầ", "ẩ", "ẫ", "ậ"],
-        "e": ["e", "é", "è", "ẻ", "ẽ", "ẹ"],
-        "ê": ["ê", "ế", "ề", "ể", "ễ", "ệ"],
-        "i": ["i", "í", "ì", "ỉ", "ĩ", "ị"],
-        "o": ["o", "ó", "ò", "ỏ", "õ", "ọ"],
-        "ô": ["ô", "ố", "ồ", "ổ", "ỗ", "ộ"],
-        "ơ": ["ơ", "ớ", "ờ", "ở", "ỡ", "ợ"],
-        "u": ["u", "ú", "ù", "ủ", "ũ", "ụ"],
-        "ư": ["ư", "ứ", "ừ", "ử", "ữ", "ự"],
-        "y": ["y", "ý", "ỳ", "ỷ", "ỹ", "ỵ"]
-    }
 
-    def __init__(self, stopwords_path='vietnamese-stopwords.txt'):
+    def __init__(self, stopwords_path='vietnamese-stopwords.txt', remove_punctuation=False):
         """
         Initializes the preprocessor pipeline.
 
@@ -34,14 +141,16 @@ class VietnameseTextProcessor:
         for tone normalization to optimize processing speed.
 
         Args:
-            stopwords_path (str, optional): The file path to the Vietnamese stopwords list. 
-                                            Defaults to 'vietnamese-stopwords.txt'.
+            stopwords_path (str): The file path to the Vietnamese stopwords list. 
+                                Defaults to 'vietnamese-stopwords.txt'.
+            remove_punctuation (bool): If True, strips all punctuation (Good for TF-IDF).
+                                       If False, keeps structural marks (Good for RAG/LLM).
         """
+        self.remove_punctuation = remove_punctuation
         self.stopwords = self._load_stopwords(stopwords_path)
         self.negation_words = {'không', 'chẳng', 'chưa'}
         self.stopwords = self.stopwords - self.negation_words
         
-        self.reverse_tone = self._build_reverse_tone()
 
     def _load_stopwords(self, path):
         """
@@ -55,125 +164,10 @@ class VietnameseTextProcessor:
         """
         try:
             with open(path, encoding='utf-8') as f:
-                return set(line.strip() for line in f if line.strip())
+                return set(line.strip().replace(" ", "_") for line in f if line.strip())
         except FileNotFoundError:
-            print(f"Warning: Không tìm thấy file {path}. Bỏ qua stopwords.")
+            print(f"Warning: Stopword file not found at {path}. Proceeding without it.")
             return set()
-        
-    def _build_reverse_tone(self):
-        """
-        Builds a reverse lookup map for tone extraction.
-
-        This optimize the tone normalization process by allowing O(1) lookups 
-        to find the base character and the tone index of any accented character.
-
-        Returns:
-            dict: A dictionary mapping an accented character to a tuple(base_character, tone_index).
-        """
-        reverse_tone = {}
-        for base, forms in self.TONE_TABLE.items():
-            for idx, char in enumerate(forms):
-                reverse_tone[char] = (base, idx)
-        return reverse_tone
-    
-    def _find_tone_position(self, chars, vowel_indices):
-        """
-        Determines the correct index to place the tone mark within a Vietnamese syllable.
-
-        Follows standard Vietnamese orthography rules to handle specific vowel 
-        combinations and ending consonants.
-
-        Args:
-            chars (list of str): A list of characters forming the syllable.
-            vowel_indices (list of int): The position indices of vowels in the syllable.
-
-        Returns:
-            int: The correct index in the 'chars' list where the tone should be applied.
-        """
-        vowels = [chars[i] for i in vowel_indices]
-
-        # Rule 1: Prioritize e, o, ơ
-        for i in vowel_indices:
-            if chars[i] in ["ê", "ô", "ơ"]:
-                return i
-
-        # Rule 2: 3 vowels
-        if len(vowel_indices) == 3:
-            v1, v2, v3 = vowels
-            if v3 in ["i", "y"]:
-                pair = v1 + v2
-                if pair in ["oa", "oe", "uy"]:
-                    return vowel_indices[1]
-                return vowel_indices[0]
-            return vowel_indices[1]
-
-        # Rule 3: 2 vowels
-        if len(vowel_indices) == 2:
-            has_final = chars[-1] not in self.VOWELS
-            if has_final:
-                return vowel_indices[1]
-            else:
-                return vowel_indices[0]
-
-        return vowel_indices[0]
-    
-    def _normalize_word_tone(self, word):
-        """
-        Standardizes the tone placement for a single word or syllable.
-
-        Args:
-            word (str): The raw input syllable.
-
-        Returns:
-            str: The syllable with the tone mark shifted to the linguistically 
-                correct position. If no tones are detected or it's a special token, 
-                returns the original word.
-        """
-        if all(c not in self.reverse_tone for c in word):
-            return word
-
-        if word.startswith("<") and word.endswith(">"):
-            return word
-
-        tone = 0
-        vowel_indices = []
-        chars = []
-
-        for i, c in enumerate(word):
-            lower_c = c 
-
-            if lower_c in self.reverse_tone:
-                base, tone_idx = self.reverse_tone[lower_c]
-                if tone == 0 and tone_idx != 0:
-                    tone = tone_idx
-                chars.append(base)
-                if base in self.VOWELS:
-                    vowel_indices.append(i)
-            else:
-                chars.append(lower_c)
-                if lower_c in self.VOWELS:
-                    vowel_indices.append(i)
-
-        if not vowel_indices:
-            return word
-
-        # Process the exceptions: qu, gi
-        if len(chars) >= 2:
-            if chars[0] == "q" and chars[1] == "u":
-                vowel_indices = [i for i in vowel_indices if i != 1]
-            if chars[0] == "g" and chars[1] == "i":
-                vowel_indices = [i for i in vowel_indices if i != 1]
-
-        if not vowel_indices:
-            return word
-
-        pos = self._find_tone_position(chars, vowel_indices)
-        base_char = chars[pos]
-        
-        if base_char in self.TONE_TABLE:
-            chars[pos] = self.TONE_TABLE[base_char][tone]
-
-        return "".join(chars)
     
     def _split_sentences(self, text):
         """
@@ -215,7 +209,14 @@ class VietnameseTextProcessor:
         text = re.sub(r"http\S+|www\S+", " TOKURL ", text)
         text = re.sub(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+", " TOKEMAIL ", text)
         text = re.sub(r"(0|\+84)\d{8,10}", " TOKPHONE ", text)
-        text = re.sub(r"[^\w\s.,!?]", " ", text)
+
+        # Handle punctuation based on config
+        if self.remove_punctuation:
+            text = re.sub(r"[^\w\s]", " ", text)
+        else:
+            # Preserve structural marks
+            text = re.sub(r"[^\w\s.,!?]", " ", text)
+
         text = re.sub(r'\s+', ' ', text).strip()
         return text
     
@@ -260,13 +261,12 @@ class VietnameseTextProcessor:
             document = unicodedata.normalize('NFC', document)
 
             # Break the paragraph into a list of sentences.
-            sentences = self._split_sentences(document)
+            sentences = [document] if self.remove_punctuation else self._split_sentences(document)
             
             cleaned_sentences = []
             for sentence in sentences:
                 # Clean and mask for each sentence
-                sentence = self._clean_and_mask(sentence)
-                sentence = sentence.lower()
+                sentence = self._clean_and_mask(sentence).lower()
 
                 # Tokenize
                 segmented_sentence = word_tokenize(sentence, format='text')
@@ -275,29 +275,34 @@ class VietnameseTextProcessor:
                 tokens = segmented_sentence.split()
                 final_tokens = []
                 for t in tokens:
+                    # Split compound words to normalize tone for each syllable
                     syllables = t.split('_')
-                    normalized_syllables = [self._normalize_word_tone(s) for s in syllables]
+                    normalized_syllables = [normalize_word_tone(s) for s in syllables]
                     normalized_tokens = '_'.join(normalized_syllables)
 
+                    # Filter stopwords while keeping masks
                     if (normalized_tokens not in self.stopwords) or normalized_tokens.startswith('tok'):
                         final_tokens.append(normalized_tokens)
 
                 # Join sentence & restore masking
                 joined_sentence = " ".join(final_tokens)
                 final_sentence = self._restore_special_tokens(joined_sentence)
-
                 # Ignore empty sentences(only stopwords and noise)
                 if final_sentence.strip():
                     cleaned_sentences.append(final_sentence)
 
-            cleaned_documents.append(cleaned_sentences)
+            # Format output based on the mode
+            if self.remove_punctuation:
+                cleaned_documents.append(" ".join(cleaned_sentences))
+            else:
+                cleaned_documents.append(cleaned_sentences)
 
         return cleaned_documents
             
 
     
 # How to call class 
-# preprocessor = VietnameseTextPreprocessor("vietnamese-stopwords.txt")
+# preprocessor = VietnameseTextPreprocessor(remove_punctuation=True)
 # clean_texts = preprocessor.transform(["Raw text 1", "Raw text 2"])
 
 

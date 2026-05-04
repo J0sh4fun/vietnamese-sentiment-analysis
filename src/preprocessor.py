@@ -2,6 +2,7 @@ import re
 import unicodedata
 from underthesea import word_tokenize
 from functools import lru_cache
+from config import VIETNAMESE_STOPWORDS
 
 VOWELS = "aăâeêioôơuưy"
     
@@ -133,68 +134,19 @@ class VietnameseTextProcessor:
     Unicode normalization (NFC), word segmentation, tone normalization, and stopword filtering.
     """
 
-    def __init__(self, stopwords_path='vietnamese-stopwords.txt', remove_punctuation=False):
+    def __init__(self):
         """
         Initializes the preprocessor pipeline.
 
         Loads the stopwords list and builds the necessary mapping dictionaries
         for tone normalization to optimize processing speed.
-
-        Args:
-            stopwords_path (str): The file path to the Vietnamese stopwords list. 
-                                Defaults to 'vietnamese-stopwords.txt'.
-            remove_punctuation (bool): If True, strips all punctuation (Good for TF-IDF).
-                                       If False, keeps structural marks (Good for RAG/LLM).
         """
-        self.remove_punctuation = remove_punctuation
-        self.stopwords = self._load_stopwords(stopwords_path)
         self.negation_words = {'không', 'chẳng', 'chưa'}
-        self.stopwords = self.stopwords - self.negation_words
-        
-
-    def _load_stopwords(self, path):
-        """
-        Loads a set of stopwords for a specified text file.
-
-        Args:
-            path (str): The exact path to the text file containing stopwords
-
-        Returns:
-            set: a collection of unique stopwords. Returns an empty set if the file cannot be found.
-        """
-        try:
-            with open(path, encoding='utf-8') as f:
-                return set(line.strip().replace(" ", "_") for line in f if line.strip())
-        except FileNotFoundError:
-            print(f"Warning: Stopword file not found at {path}. Proceeding without it.")
-            return set()
-    
-    def _split_sentences(self, text):
-        """
-        Splits a raw paragraph into individual sentences based on structural punctuation.
-
-        Uses positive lookbehind regular expressions to identify sentence 
-        boundaries (periods, question marks, exclamation points) without 
-        consuming the punctuation marks themselves.
-
-        Args:
-            text (str): The raw text string
-
-        Returns:
-            list of str: A list of individual sentences extracted from the paragraph. 
-                        Empty strings are filtered out.
-        """
-
-        sentences = re.split(r"(?<=[.!?])\s+", text.strip())
-
-        return [s for s in sentences if s.strip()]
+        self.stopwords = VIETNAMESE_STOPWORDS - self.negation_words
         
     def _clean_and_mask(self, text):
         """
         Removes HTML entities, masks structured data, and filters out noise.
-
-        Unlike standard aggressive cleaning, this method preserves structural 
-        punctuation (.,!?) for downstream tasks like sentence segmentation. 
 
         It replaces sensitive information (URLs, emails, phones) with uppercase 
         text-based placeholders (e.g., TOKPHONE) to prevent tokenization errors.
@@ -203,19 +155,14 @@ class VietnameseTextProcessor:
             text (str): The input sentence string.
 
         Returns:
-            str: The cleaned sentence with masked entities and preserved punctuation.
+            str: The cleaned sentence with masked entities and punctuation removed.
         """
         text = re.sub(r"</?[a-zA-Z]+.*?>", " ", text)
         text = re.sub(r"http\S+|www\S+", " TOKURL ", text)
         text = re.sub(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+", " TOKEMAIL ", text)
         text = re.sub(r"(0|\+84)\d{8,10}", " TOKPHONE ", text)
 
-        # Handle punctuation based on config
-        if self.remove_punctuation:
-            text = re.sub(r"[^\w\s]", " ", text)
-        else:
-            # Preserve structural marks
-            text = re.sub(r"[^\w\s.,!?]", " ", text)
+        text = re.sub(r"[^\w\s]", " ", text)
 
         text = re.sub(r'\s+', ' ', text).strip()
         return text
@@ -242,26 +189,21 @@ class VietnameseTextProcessor:
         """
         Executes the end-to-end preprocessing pipeline on a batch of documents.
 
-        The pipeline processes text hierarchically: it first splits each document 
-        into sentences, then cleans, segments, and normalizes each sentence individually. 
-        This preserves the contextual boundary of sentences, which is essential for 
-        Retrieval-Augmented Generation (RAG) or sequence-to-sequence models.
+        The pipeline cleans, segments, and normalizes each document while removing
+        punctuation for TF-IDF-style vectorization.
 
         Args:
             text_list (list of str): A batch containing raw Vietnamese documents/paragraphs.
 
         Returns:
-            list of list of str: A nested list where each element represents a document, 
-                                and each document is a list of its constituent, fully 
-                                preprocessed sentences.
+            list of str: A list where each element is a fully preprocessed document.
         """
         cleaned_documents = []
 
         for document in text_list:
             document = unicodedata.normalize('NFC', document)
 
-            # Break the paragraph into a list of sentences.
-            sentences = [document] if self.remove_punctuation else self._split_sentences(document)
+            sentences = [document]
             
             cleaned_sentences = []
             for sentence in sentences:
@@ -291,18 +233,14 @@ class VietnameseTextProcessor:
                 if final_sentence.strip():
                     cleaned_sentences.append(final_sentence)
 
-            # Format output based on the mode
-            if self.remove_punctuation:
-                cleaned_documents.append(" ".join(cleaned_sentences))
-            else:
-                cleaned_documents.append(cleaned_sentences)
+            cleaned_documents.append(" ".join(cleaned_sentences))
 
         return cleaned_documents
             
 
     
 # How to call class 
-# preprocessor = VietnameseTextPreprocessor(remove_punctuation=True)
+# preprocessor = VietnameseTextProcessor()
 # clean_texts = preprocessor.transform(["Raw text 1", "Raw text 2"])
 
 

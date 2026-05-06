@@ -1,13 +1,38 @@
 # Virtual environment
+venv/
+env/
 .venv/
+.env
 
-# Python autocompiler file
+# Python autocompiler file / Optimized / DLL files
 __pycache__/
 *.pyc
+*.py[cod]
+*$py.class
 
 # IDE config
 .idea/
 .vscode/
+
+# Data
+/data/*.jsonl
+/data/*.csv
+/data/*.txt
+
+# Models & Evaluation Outputs
+/models/
+*.joblib
+*.pkl
+*.model
+
+# Logs & caches
+*.log
+logs/
+.pytest_cache/
+
+# OS generated files
+.DS_Store
+Thumbs.db
 
 # Temp file that runs the code
 tempCodeRunnerFile.py

@@ -67,7 +67,7 @@ def find_tone_position(chars, vowel_indices):
 
     return vowel_indices[0]
 
-lru_cache(maxsize=50000)
+@lru_cache(maxsize=50000)
 def normalize_word_tone(word):
     """
     Standardizes the tone placement for a single word or syllable.

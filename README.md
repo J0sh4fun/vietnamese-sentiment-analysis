@@ -42,7 +42,7 @@ vietnamese-sentiment-analysis/
 ### 1. Installation
 Clone the repository and install the required dependencies:
 ```bash
-git clone [https://github.com/your-username/vietnamese-sentiment-analysis.git](https://github.com/your-username/vietnamese-sentiment-analysis.git)
+git clone https://github.com/J0sh4fun/vietnamese-sentiment-analysis.git
 cd vietnamese-sentiment-analysis
 pip install -r requirements.txt
 ```

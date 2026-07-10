@@ -27,7 +27,7 @@ DEFAULT_AUG_DATA = PROJECT_ROOT / "data" / "aug_unaccented_reviews.jsonl"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "models"
 SUPPORTED_ALGORITHMS = ["logreg", "multinomial_nb", "complement_nb"]
 
-
+# Parse command-line arguments
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Train and select the best Vietnamese sentiment model from JSONL datasets."
@@ -172,43 +172,43 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+# Read a JSONL file into a pandas DataFrame
 def read_jsonl(path: Path) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"Dataset does not exist: {path}")
     return pd.read_json(path, lines=True)
 
-
+# Load the dataset from JSONL files
 def load_dataset(args: argparse.Namespace) -> pd.DataFrame:
-    data_paths = [args.train_data]
-    if not args.disable_aug:
-        data_paths.extend(args.aug_data)
+    df = read_jsonl(args.train_data)
 
-    frames = [read_jsonl(path) for path in data_paths]
-    df = pd.concat(frames, ignore_index=True)
-
+    # Kiểm tra cột bắt buộc
     required_columns = {args.text_column, args.label_column}
     missing_columns = required_columns - set(df.columns)
     if missing_columns:
         missing = ", ".join(sorted(missing_columns))
         raise ValueError(f"Missing required columns in dataset: {missing}")
 
+    # Lọc dữ liệu rác và trùng lặp
     df = df.dropna(subset=[args.text_column, args.label_column]).copy()
     df[args.text_column] = df[args.text_column].astype(str)
     df[args.label_column] = df[args.label_column].astype(str)
     df = df.drop_duplicates(subset=[args.text_column, args.label_column], keep="first")
 
+    # Giới hạn số lượng mẫu (dành cho chạy thử/debug)
     if args.max_samples is not None:
         if args.max_samples <= 0:
             raise ValueError("--max-samples must be greater than 0.")
         sample_size = min(args.max_samples, len(df))
         df = df.sample(n=sample_size, random_state=args.random_state)
 
+    # Đảm bảo dữ liệu không bị rỗng sau khi lọc
     if df.empty:
         raise ValueError("No rows remain after loading and filtering dataset.")
 
     return df.reset_index(drop=True)
 
-
+# Preprocess the dataset using VietnameseTextProcessor
 def preprocess_dataset(df: pd.DataFrame, text_column: str) -> pd.DataFrame:
     processor = VietnameseTextProcessor()
     cleaned_text = processor.transform(df[text_column].tolist())
@@ -220,51 +220,36 @@ def preprocess_dataset(df: pd.DataFrame, text_column: str) -> pd.DataFrame:
         raise ValueError("All rows became empty after preprocessing.")
     return processed_df.reset_index(drop=True)
 
+def prepare_and_split_dataset(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    raw_df = load_dataset(args)
 
-def split_dataset(
-    df: pd.DataFrame,
-    label_column: str,
-    test_size: float,
-    val_size: float,
-    random_state: int,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    if not 0 < test_size < 1:
-        raise ValueError("--test-size must be in (0, 1).")
-    if not 0 < val_size < 1:
-        raise ValueError("--val-size must be in (0, 1).")
-    if test_size + val_size >= 1:
-        raise ValueError("--test-size + --val-size must be less than 1.")
-
-    class_counts = df[label_column].value_counts()
-    if (class_counts < 3).any():
-        problematic_labels = class_counts[class_counts < 3].to_dict()
-        raise ValueError(
-            "Each label needs at least 3 samples for train/val/test stratified split. "
-            f"Problematic labels: {problematic_labels}"
-        )
-
+    # Split the dataset into training+validation and test sets
     train_val_df, test_df = train_test_split(
-        df,
-        test_size=test_size,
-        random_state=random_state,
-        stratify=df[label_column],
+        raw_df, 
+        test_size=args.test_size,
+        random_state=args.random_state,
+        stratify=raw_df[args.label_column]
     )
 
-    val_ratio_in_train_val = val_size / (1 - test_size)
+    # If augmentation is enabled, load and append augmented datasets
+    if not args.disable_aug:
+        aug_frames = [read_jsonl(path) for path in args.aug_data]
+        aug_df = pd.concat(aug_frames, ignore_index=True)
+        train_val_df = pd.concat([train_val_df, aug_df], ignore_index=True)
+        train_val_df = train_val_df.drop_duplicates(subset=[args.text_column, args.label_column])
+
+    # Split the training+validation set into separate training and validation sets
+    val_ratio_in_train_val = args.val_size / (1 - args.test_size)
     train_df, val_df = train_test_split(
         train_val_df,
         test_size=val_ratio_in_train_val,
-        random_state=random_state,
-        stratify=train_val_df[label_column],
+        random_state=args.random_state,
+        stratify=train_val_df[args.label_column],
     )
 
-    return (
-        train_df.reset_index(drop=True),
-        val_df.reset_index(drop=True),
-        test_df.reset_index(drop=True),
-    )
+    return train_df.reset_index(drop=True), val_df.reset_index(drop=True), test_df.reset_index(drop=True)
 
-
+# Resolve candidate algorithms
 def resolve_candidate_algorithms(args: argparse.Namespace) -> list[str]:
     if args.algorithm is not None:
         return [args.algorithm]
@@ -279,7 +264,7 @@ def resolve_candidate_algorithms(args: argparse.Namespace) -> list[str]:
         raise ValueError("No candidate algorithms provided.")
     return resolved
 
-
+# Build a classifier based on the specified algorithm and hyperparameters
 def build_classifier(args: argparse.Namespace, num_classes: int, algorithm: str):
     if args.nb_alpha <= 0:
         raise ValueError("--nb-alpha must be greater than 0.")
@@ -299,7 +284,7 @@ def build_classifier(args: argparse.Namespace, num_classes: int, algorithm: str)
         return ComplementNB(alpha=args.nb_alpha)
     raise ValueError(f"Unsupported algorithm: {algorithm}")
 
-
+# Build a complete model pipeline with TF-IDF vectorization and the specified classifier
 def build_model(args: argparse.Namespace, num_classes: int, algorithm: str) -> Pipeline:
     if args.ngram_min <= 0 or args.ngram_max < args.ngram_min:
         raise ValueError("n-gram range is invalid. Ensure 0 < ngram_min <= ngram_max.")
@@ -315,7 +300,7 @@ def build_model(args: argparse.Namespace, num_classes: int, algorithm: str) -> P
     classifier = build_classifier(args=args, num_classes=num_classes, algorithm=algorithm)
     return Pipeline([("tfidf", vectorizer), ("classifier", classifier)])
 
-
+# Evaluate predictions and compute metrics
 def evaluate_predictions(y_true: pd.Series, y_pred: pd.Series) -> dict[str, float]:
     return {
         "accuracy": float(accuracy_score(y_true, y_pred)),
@@ -328,7 +313,7 @@ def evaluate_predictions(y_true: pd.Series, y_pred: pd.Series) -> dict[str, floa
         "f1_macro": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
     }
 
-
+# Train and select the best model based on validation performance
 def train_and_select_best_model(
     args: argparse.Namespace,
     train_df: pd.DataFrame,
@@ -389,7 +374,7 @@ def train_and_select_best_model(
     )
     return best_model, best_entry, leaderboard, candidate_algorithms
 
-
+# Save training artifacts to disk
 def save_artifacts(
     args: argparse.Namespace,
     model: Pipeline,
@@ -464,20 +449,17 @@ def save_artifacts(
 
 def main() -> None:
     args = parse_args()
+
+    # Tạo danh sách paths để lưu METADATA
     dataset_paths = [args.train_data]
     if not args.disable_aug:
         dataset_paths.extend(args.aug_data)
 
-    raw_df = load_dataset(args)
-    processed_df = preprocess_dataset(raw_df, args.text_column)
+    train_df, val_df, test_df = prepare_and_split_dataset(args)
 
-    train_df, val_df, test_df = split_dataset(
-        processed_df,
-        label_column=args.label_column,
-        test_size=args.test_size,
-        val_size=args.val_size,
-        random_state=args.random_state,
-    )
+    train_df = preprocess_dataset(train_df, args.text_column)
+    val_df = preprocess_dataset(val_df, args.text_column)
+    test_df = preprocess_dataset(test_df, args.text_column)
 
     best_model, best_entry, leaderboard, candidate_algorithms = train_and_select_best_model(
         args=args,
@@ -486,9 +468,7 @@ def main() -> None:
         label_column=args.label_column,
     )
 
-    y_test_pred = pd.Series(best_model.predict(test_df["clean_text"]), index=test_df.index).astype(
-        str
-    )
+    y_test_pred = pd.Series(best_model.predict(test_df["clean_text"]), index=test_df.index).astype(str)
     test_metrics = evaluate_predictions(
         y_true=test_df[args.label_column].astype(str),
         y_pred=y_test_pred,

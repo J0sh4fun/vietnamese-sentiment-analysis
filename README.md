@@ -4,6 +4,7 @@
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-1.2+-orange.svg)
 ![NLP](https://img.shields.io/badge/NLP-Vietnamese-green.svg)
 ![Status](https://img.shields.io/badge/status-production--ready-success.svg)
+[![Kaggle](https://kaggle.com/static/images/open-in-kaggle.svg)](đường_link_đến_notebook_kaggle_của_bạn)
 
 An end-to-end Machine Learning pipeline designed to classify Vietnamese e-commerce reviews (e.g., Shopee) into Positive or Negative sentiments. 
 
@@ -39,6 +40,10 @@ vietnamese-sentiment-analysis/
 ```
 
 ## Getting Started
+### 🚀 Quick Start & Demo (Run on Kaggle)
+Skip the local setup and explore the code directly in your browser! We provide a complete Kaggle Notebook demonstrating the Exploratory Data Analysis (EDA), Text Preprocessing, and Model Training steps:
+👉 **[Open Kaggle Notebook Demo](https://www.kaggle.com/code/josh4fun/vietnamese-text-processing)**
+
 ### 1. Installation
 Clone the repository and install the required dependencies:
 ```bash
@@ -56,6 +61,11 @@ Place your raw dataset in the data/ directory. The pipeline expects a .jsonl for
 Note: Due to file size and privacy, the full training dataset is not included in this repository. Please refer to data/sample_data.jsonl for the expected schema.
 
 Credit: https://www.kaggle.com/datasets/dduongdev/shopee-vietnamese-product-reviews-sentiment
+
+### 3. Exploratory Data Analysis (EDA)
+To understand the dataset's distribution, class balance, and vocabulary characteristics, an in-depth Exploratory Data Analysis was conducted. This includes generating sentiment-specific WordClouds and analyzing text lengths.
+Detailed visual analysis and data mixing strategies can be found in our interactive notebook:
+🔗 **[View EDA Notebook on Kaggle](https://www.kaggle.com/code/josh4fun/vietnamese-text-processing)**
 
 ## Train the model
 

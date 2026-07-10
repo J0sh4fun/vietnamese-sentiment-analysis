@@ -2,7 +2,7 @@ import re
 import unicodedata
 from underthesea import word_tokenize
 from functools import lru_cache
-from config import VIETNAMESE_STOPWORDS
+from assets.vietnamese_stopwords import VIETNAMESE_STOPWORDS
 
 VOWELS = "aăâeêioôơuưy"
     

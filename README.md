@@ -135,6 +135,18 @@ Compare multiple models and auto-select the best:
 python src/train.py --algorithms logreg multinomial_nb complement_nb --selection-metric f1_macro --run-name model_selection
 ```
 
+## Interactive Web App (Streamlit)
+
+You can test the trained model directly through an interactive web application. The interface allows you to input custom Vietnamese reviews and provides real-time sentiment predictions along with confidence scores (probability percentages).
+
+### 1. Start the App
+Before running the app, ensure you have successfully trained a model and that the `model_path` in `app.py` points to your latest `.joblib` artifact. 
+
+Run the following command from the root directory:
+
+```bash
+streamlit run app.py
+
 ## Author 
 josh4fun
 

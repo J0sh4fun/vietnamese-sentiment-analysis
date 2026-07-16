@@ -157,12 +157,12 @@ class VietnameseTextProcessor:
         Returns:
             str: The cleaned sentence with masked entities and punctuation removed.
         """
-        text = re.sub(r"</?[a-zA-Z]+.*?>", " ", text)
-        text = re.sub(r"http\S+|www\S+", " TOKURL ", text)
-        text = re.sub(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+", " TOKEMAIL ", text)
-        text = re.sub(r"(0|\+84)\d{8,10}", " TOKPHONE ", text)
+        text = re.sub(r"</?[a-zA-Z]+.*?>", " ", text) # Remove HTML tags
+        text = re.sub(r"http\S+|www\S+", " TOKURL ", text) # Mask URLs
+        text = re.sub(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+", " TOKEMAIL ", text) # Mask Emails
+        text = re.sub(r"(0|\+84)\d{8,10}", " TOKPHONE ", text) # Mask Phone numbers
 
-        text = re.sub(r"[^\w\s]", " ", text)
+        text = re.sub(r"[^\w\s]", " ", text) # Remove punctuation except for underscores
 
         text = re.sub(r'\s+', ' ', text).strip()
         return text

@@ -32,6 +32,10 @@ def parse_args() -> argparse.Namespace:
         description="Train and select the best Vietnamese sentiment model from JSONL datasets."
     )
     parser.add_argument(
+        "--legacy-tone-repositioning", action="store_true",
+        help="Opt into the unvalidated legacy tone heuristic for explicit comparisons only.",
+    )
+    parser.add_argument(
         "--train-data",
         type=Path,
         default=DEFAULT_TRAIN_DATA,
@@ -181,7 +185,9 @@ def parse_args() -> argparse.Namespace:
 
 def prepare_and_split_dataset(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     # Stateless text cleaning is safe before splitting; TF-IDF fits only in model.fit.
-    return prepare_dataset(args, VietnameseTextProcessor())
+    processor = VietnameseTextProcessor(tone_repositioning=args.legacy_tone_repositioning)
+    args.preprocessing_config = processor.to_config()
+    return prepare_dataset(args, processor)
 
 
 # Resolve candidate algorithms
@@ -256,6 +262,8 @@ def train_and_select_best_model(
     label_column: str,
 ) -> tuple[Pipeline, dict[str, object], list[dict[str, object]], list[str]]:
     candidate_algorithms = resolve_candidate_algorithms(args)
+    if train_df["clean_text"].str.strip().eq("").all():
+        raise ValueError("All training inputs became empty; TF-IDF cannot fit a vocabulary.")
     num_classes = train_df[label_column].nunique()
     y_val_true = val_df[label_column].astype(str)
 
@@ -352,6 +360,8 @@ def save_artifacts(
     output_payload = {
         "run_name": run_name,
         "data_audit": args.data_audit,
+        "preprocessing": args.preprocessing_config,
+        "preprocessing_by_split": args.preprocessing_by_split,
         "overlap_checks": args.overlap_checks,
         "augmentation_path": str(augmentation_path),
         "dataset_paths": [str(path) for path in dataset_paths],
@@ -452,6 +462,7 @@ def main() -> None:
         "selection_metric": args.selection_metric,
         "best_validation_score": best_entry["selection_score"],
         "best_test_f1_macro": test_metrics["f1_macro"],
+        "preprocessing_by_split": args.preprocessing_by_split,
         "split_sizes": {
             "train": len(train_df),
             "validation": len(val_df),

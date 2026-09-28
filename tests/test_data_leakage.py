@@ -143,7 +143,7 @@ class LeakageTests(unittest.TestCase):
         ]), "review", "label", ["positive", "negative"], [], "original")
         self.assertEqual(len(result), 2)
 
-    def test_preprocessed_duplicates_conflicts_and_empty_text_are_filtered(self):
+    def test_preprocessed_duplicates_and_conflicts_filtered_but_empty_kept(self):
         class CleaningProcessor:
             def transform(self, texts):
                 return [text.replace("!", "").strip() for text in texts]
@@ -157,10 +157,34 @@ class LeakageTests(unittest.TestCase):
         ])
         audit = []
         result = preprocess_frame(frame, "review", "label", CleaningProcessor(), audit, "original")
-        self.assertEqual(result.clean_text.tolist(), ["good"])
-        self.assertEqual(audit[0]["samples"], 4)
+        self.assertEqual(result.clean_text.tolist(), ["good", ""])
+        self.assertEqual(audit[0]["samples"], 5)
+        self.assertEqual(audit[0]["empty_rows"], 1)
+        self.assertEqual(audit[0]["exclusion_rate"], 0)
         self.assertEqual(audit[-1]["conflicting_rows"], 2)
         self.assertEqual(audit[-1]["duplicate_rows"], 1)
+
+    def test_empty_originals_remain_in_all_splits_and_rates_are_reported(self):
+        class EmptyForNegativeProcessor:
+            def transform(self, texts):
+                return ["" if int(text.split()[-1]) % 2 == 0 else text for text in texts]
+
+        args = self.args()
+        parts = prepare_dataset(args, EmptyForNegativeProcessor())
+        self.assertEqual(tuple(map(len, parts)), (60, 20, 20))
+        for name, frame in zip(("train", "validation", "test"), parts):
+            report = args.preprocessing_by_split[name]
+            self.assertEqual(report["input_rows"], len(frame))
+            self.assertEqual(report["empty_rows"], len(frame) // 2)
+            self.assertEqual(report["empty_rate"], .5)
+            self.assertEqual(report["excluded_rows"], 0)
+            self.assertEqual(report["exclusion_rate"], 0)
+        assert_no_overlap(*parts)
+
+    def test_all_empty_training_fails_with_actionable_error(self):
+        frame = pd.DataFrame({"clean_text": ["", ""], "label": ["positive", "negative"]})
+        with self.assertRaisesRegex(ValueError, "All training inputs became empty"):
+            train_and_select_best_model(self.args(), frame, frame, "label")
 
     def test_all_imported_rows_rejected_is_valid_and_counted(self):
         path = self.write("rejected.jsonl", [{

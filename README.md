@@ -12,7 +12,7 @@ This project heavily emphasizes a **data-centric approach**, featuring a robust 
 
 ## Key Features
 
-*   **Tailored Vietnamese Preprocessing:** Built from scratch to handle real-world "dirty" data. Includes HTML/URL masking, Unicode (NFC) normalization, Vietnamese tone standardization, and tokenization using `underthesea`.
+*   **Tailored Vietnamese Preprocessing:** HTML cleanup, structured URL/email/phone masking, Unicode NFC normalization, and word segmentation using `underthesea`. Custom tone repositioning is disabled by default.
 *   **Smart Stopword Filtering:** Filters noise while preserving crucial negation words (e.g., *không*, *chẳng*, *chưa*) to prevent sentiment flip errors.
 *   **Automated Model Selection:** Automatically trains and evaluates multiple algorithms (`Logistic Regression`, `MultinomialNB`, `ComplementNB`), selecting the best performer based on the `F1-macro` score to combat class imbalance.
 *   **MLOps-Ready Structure:** CLI-driven execution using `argparse`, isolated source code, and automated artifact logging (saving `.joblib` models, metrics in JSON, and train/val/test splits).
@@ -107,7 +107,7 @@ Training artifacts include:
 
 The old pipeline split off test, appended augmentation, then split training/validation. A variant could therefore enter validation while its original was in training, or enter training while its original was in test. Augmentation files also bypassed validation. Existing models and scores from that procedure should be rerun before comparison.
 
-Every input source, including generated variants, uses the same validation policy: required text/label columns; nonempty string text; exact allowed string labels (default `negative positive`); accent-preserving NFC, case and whitespace normalization; removal of duplicate text/label rows; and removal of **all** rows with conflicting labels for identical normalized text. Schema errors fail the run. Missing/invalid values are filtered and counted. Stateless preprocessing also filters empty text, duplicates and conflicting labels that become identical after cleaning. These checks happen before splitting originals. No TF-IDF vocabulary or IDF is fitted during this stage.
+Every input source, including generated variants, uses the same validation policy: required text/label columns; nonempty string text; exact allowed string labels (default `negative positive`); accent-preserving NFC, case and whitespace normalization; removal of duplicate text/label rows; and removal of **all** rows with conflicting labels for identical normalized text. Schema errors fail the run. Missing/invalid values are filtered and counted. Stateless preprocessing also filters duplicates and conflicting labels that become identical after cleaning, except empty cleaned originals are retained (see below). These checks happen before splitting originals. No TF-IDF vocabulary or IDF is fitted during this stage.
 
 `source_id` is retained when supplied as a nonempty trimmed string; otherwise it is a SHA-256 hash of normalized original text. The old `id` column is not assumed to identify a source. Repeated source IDs stay in one split; conflicting labels within a source ID fail the run. Supplied source IDs that disagree for identical raw or cleaned text are rejected before deduplication, so dropping an alias cannot break a source group. Split ratios apply to source groups (normally one row each), with validation/test counts rounded up from the full original group count; row ratios can differ when a source has multiple original rows. `--max-samples` caps filtered originals before splitting. Small datasets that cannot support stratification fail with an explanatory error.
 
@@ -137,6 +137,29 @@ Run the focused regression tests (synthetic fixtures, temporary artifacts):
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+## Preprocessing behavior and reproducibility
+
+The original custom tone heuristic changed correctly spelled `khuấy` to `khúây`: its three-vowel rule selected `u` from `uâ y`. A regression test reproduced this before the implementation changed. There is no evidence establishing this heuristic's general correctness. `normalize_unicode()` now performs only NFC composition, and `normalize_word_tone()` preserves NFC spelling by default. Neither tries to correct alternative placements such as `hòa`/`hoà` or `thủy`/`thuỷ`. The segmenter's separate implicit tone/token normalization is also explicitly disabled with `use_token_normalize=False`.
+
+The order is NFC, lowercase and HTML cleanup, identify structured entities, clean punctuation in the remaining text, segment words, then filter whole-token stopwords. NFC comes first because punctuation filtering can otherwise discard decomposed combining marks. Segmentation sees the final spelling, and stopword filtering sees the resulting compound tokens. URL/email/contiguous Vietnamese phone spans bypass segmentation as `<url>`, `<email>`, `<phone>`; uppercase URLs are recognized and literal `TOKURL` substrings are not rewritten. Phone masking covers contiguous `0...`/`+84...` forms, not every spaced or punctuated phone notation.
+
+The checked stopword list has 1,942 entries: 1,571 contain underscores and none contain spaces. Stopword entries and segmented tokens share one NFC/lowercase/underscore comparison form; a custom space-separated entry such as `bây giờ` therefore matches `bây_giờ`. Filtering matches whole tokens, not arbitrary phrases across token boundaries. Tokens containing the syllables `không`, `chẳng`, `chưa`, `chớ`, or `đừng` are protected, including compounds such as `không_phải` and `chưa_từng`. The source stopword list is unchanged.
+
+`transform()` returns exactly one string per input, including `""` for reviews reduced to no lexical content. Original empty results remain in training, validation and test; TF-IDF represents them as zero-feature rows and metrics include them. `preprocessing_by_split` in metadata and training output reports the number of assigned originals, empty count/rate, and empty-exclusion count/rate (zero under the `keep` policy). Earlier schema/conflict/duplicate filtering has its own global audit counts and does not contribute to these empty-exclusion rates. Empty cleaned strings alone do not identify a shared source; raw-text and source-ID overlap checks still apply. Empty generated variants add no information and are excluded with separate augmentation counts/rates. An all-empty training corpus fails with an explicit error. CSV evaluation preserves empty strings instead of turning them into the token `nan`, and reports the evaluated denominator and empty-input rate.
+
+Every new run saves a JSON-safe `preprocessing` configuration, including implementation version, normalization/masking/filtering policies, exact effective stopwords and protected negations, and tokenizer/Unicode versions. Restore it with:
+
+```python
+import json
+from pathlib import Path
+from src.preprocessor import VietnameseTextProcessor
+
+metadata = json.loads(Path("models/<run_name>/train_metadata.json").read_text(encoding="utf-8"))
+processor = VietnameseTextProcessor.from_config(metadata["preprocessing"])
+```
+
+Restoration rejects unsupported settings or runtime mismatches. The Streamlit app now restores this configuration alongside the model; models without it require retraining and updating `model_path`. Existing artifacts are not rewritten. For an explicit diagnostic comparison only, `--legacy-tone-repositioning` enables the still-defective custom heuristic before segmentation and emits a warning. This flag does not recreate every behavior of the old pipeline. These correctness changes do not establish an F1 improvement.
 
 ## Evaluate the model
 

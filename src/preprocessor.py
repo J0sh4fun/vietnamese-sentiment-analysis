@@ -1,4 +1,6 @@
 import re
+import warnings
+from importlib.metadata import version
 import unicodedata
 from underthesea import word_tokenize
 from functools import lru_cache
@@ -28,17 +30,16 @@ for base, forms in TONE_TABLE.items():
 
 def find_tone_position(chars, vowel_indices):
     """
-    Determines the correct index to place the tone mark within a Vietnamese syllable.
+    Legacy heuristic only; known to corrupt correctly spelled words.
 
-    Follows standard Vietnamese orthography rules to handle specific vowel 
-    combinations and ending consonants.
+    Retained for explicit opt-in comparisons, not a validated orthography rule.
 
     Args:
         chars (list of str): A list of characters forming the syllable.
         vowel_indices (list of int): The position indices of vowels in the syllable.
 
     Returns:
-        int: The correct index in the 'chars' list where the tone should be applied.
+        int: The heuristic's chosen index; this is not guaranteed to be correct.
     """
     vowels = [chars[i] for i in vowel_indices]
 
@@ -68,17 +69,15 @@ def find_tone_position(chars, vowel_indices):
     return vowel_indices[0]
 
 @lru_cache(maxsize=50000)
-def normalize_word_tone(word):
+def _legacy_reposition_word_tone(word):
     """
-    Standardizes the tone placement for a single word or syllable.
+    Unvalidated legacy tone repositioning, including the known khuay bug.
 
     Args:
         word (str): The raw input syllable.
 
     Returns:
-        str: The syllable with the tone mark shifted to the linguistically 
-            correct position. If no tones are detected or it's a special token, 
-            returns the original word.
+        str: The legacy heuristic output, which may be linguistically incorrect.
     """
     if all(c not in REVERSE_TONE for c in word):
         return word
@@ -126,121 +125,121 @@ def normalize_word_tone(word):
 
     return "".join(chars)
 
+
+def normalize_unicode(text: str) -> str:
+    """Canonical Unicode composition only; never move a tone to another letter."""
+    return unicodedata.normalize("NFC", text)
+
+
+def normalize_word_tone(word: str, *, reposition: bool = False) -> str:
+    """Compatibility API: NFC by default, unvalidated legacy behavior by opt-in."""
+    word = normalize_unicode(word)
+    return _legacy_reposition_word_tone(word) if reposition else word
+
+
+NEGATION_WORDS = frozenset({"không", "chẳng", "chưa", "chớ", "đừng"})
+ENTITY_PATTERN = re.compile(
+    r"(?P<email>[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9.-]+)"
+    r"|(?P<url>\b(?:https?://|www\.)[^\s<>]+)"
+    r"|(?P<phone>(?<!\w)(?:0|\+84)\d{8,10}(?!\w))",
+    re.IGNORECASE,
+)
+
+
+def stopword_key(text: str) -> str:
+    """Compare a whole token/entry in one NFC, lowercase, underscore form."""
+    return "_".join(normalize_unicode(text).lower().replace("_", " ").split())
+
+
 class VietnameseTextProcessor:
+    """Stateless NFC/cleaning/segmentation/filtering; preserves one output per input.
+
+    Empty results are empty strings, not discarded rows. Tone repositioning is
+    disabled because the legacy heuristic has known counterexamples.
     """
-    A text processing pipeline specificially designed for Vietnamese NLP tasks.
-    
-    This class handels noise removal (HTML tags), text masking(URLs, emails, phone numbers),
-    Unicode normalization (NFC), word segmentation, tone normalization, and stopword filtering.
-    """
 
-    def __init__(self):
-        """
-        Initializes the preprocessor pipeline.
+    IMPLEMENTATION_VERSION = 2
 
-        Loads the stopwords list and builds the necessary mapping dictionaries
-        for tone normalization to optimize processing speed.
-        """
-        self.negation_words = {'không', 'chẳng', 'chưa'}
-        self.stopwords = VIETNAMESE_STOPWORDS - self.negation_words
-        
-    def _clean_and_mask(self, text):
-        """
-        Removes HTML entities, masks structured data, and filters out noise.
+    def __init__(self, *, tone_repositioning=False, remove_stopwords=True, stopwords=None):
+        if type(tone_repositioning) is not bool or type(remove_stopwords) is not bool:
+            raise TypeError("Preprocessing switches must be booleans.")
+        self.tone_repositioning = tone_repositioning
+        self.remove_stopwords = remove_stopwords
+        self.negation_words = NEGATION_WORDS
+        words = VIETNAMESE_STOPWORDS if stopwords is None else stopwords
+        canonical_words = {stopword_key(word) for word in words}
+        self.stopwords = frozenset(word for word in canonical_words if word
+                                  and not self.negation_words.intersection(word.split("_")))
+        if tone_repositioning:
+            warnings.warn("Legacy tone repositioning is unvalidated and can corrupt correct words; "
+                          "enable only for explicit comparisons.", UserWarning, stacklevel=2)
 
-        It replaces sensitive information (URLs, emails, phones) with uppercase 
-        text-based placeholders (e.g., TOKPHONE) to prevent tokenization errors.
+    def to_config(self) -> dict:
+        """JSON-safe settings plus the exact effective stopword snapshot/runtime."""
+        return {
+            "implementation_version": self.IMPLEMENTATION_VERSION,
+            "settings": {
+                "unicode_normalization": "NFC",
+                "tone_repositioning": self.tone_repositioning,
+                "tokenizer_token_normalization": False,
+                "lowercase": True,
+                "remove_stopwords": self.remove_stopwords,
+                "empty_policy": "keep",
+                "stopword_matching": "whole_token_underscore",
+                "masking": "structured_spans_v2",
+            },
+            "stopwords": sorted(self.stopwords),
+            "protected_negations": sorted(self.negation_words),
+            "runtime": {"underthesea": version("underthesea"), "unicode": unicodedata.unidata_version},
+        }
 
-        Args:
-            text (str): The input sentence string.
+    @classmethod
+    def from_config(cls, config: dict):
+        """Restore exactly; fail rather than silently substitute settings/runtime."""
+        settings = config["settings"]
+        processor = cls(tone_repositioning=settings["tone_repositioning"],
+                        remove_stopwords=settings["remove_stopwords"], stopwords=config["stopwords"])
+        if processor.to_config() != config:
+            raise ValueError("Unsupported preprocessing configuration or runtime mismatch; "
+                             "use the recorded implementation and dependency versions.")
+        return processor
 
-        Returns:
-            str: The cleaned sentence with masked entities and punctuation removed.
-        """
-        text = re.sub(r"</?[a-zA-Z]+.*?>", " ", text) # Remove HTML tags
-        text = re.sub(r"http\S+|www\S+", " TOKURL ", text) # Mask URLs
-        text = re.sub(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+", " TOKEMAIL ", text) # Mask Emails
-        text = re.sub(r"(0|\+84)\d{8,10}", " TOKPHONE ", text) # Mask Phone numbers
+    def _segment_text(self, text: str) -> list[str]:
+        # NFC must precede this regex: decomposed combining marks are not \w.
+        text = re.sub(r"[^\w\s]", " ", text)
+        text = " ".join(text.split())
+        if not text:
+            return []
+        if self.tone_repositioning:
+            # An explicit experimental rewrite happens BEFORE segmentation so
+            # the segmenter sees exactly the spelling that reaches TF-IDF.
+            text = re.sub(r"[^\W\d_]+", lambda match: normalize_word_tone(
+                match.group(), reposition=True), text)
+        # The segmenter also has a spelling/tone normalizer enabled by default.
+        # Disable that independently; NFC is already handled explicitly above.
+        tokens = word_tokenize(text, format="text", use_token_normalize=False).split()
+        return [token for token in tokens if not self.remove_stopwords
+                or stopword_key(token) not in self.stopwords
+                or self.negation_words.intersection(stopword_key(token).split("_"))]
 
-        text = re.sub(r"[^\w\s]", " ", text) # Remove punctuation except for underscores
-
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text
-    
-    def _restore_special_tokens(self, text):
-        """
-        Restores text-based placeholders back to standard special tokens.
-
-        Converts internal tokens like 'tokphone' back to the conventional 
-        '<phone>' format after the text has safely passed through the tokenizer.
-
-        Args:
-            text (str): The preprocessed sentence containing lowercase placeholders.
-
-        Returns:
-            str: The final sentence with standardized special tokens.
-        """
-        text = text.replace("tokurl", "<url>")
-        text = text.replace("tokemail", "<email>")
-        text = text.replace("tokphone", "<phone>")
-        return text
-    
-    def transform(self, text_list):
-        """
-        Executes the end-to-end preprocessing pipeline on a batch of documents.
-
-        The pipeline cleans, segments, and normalizes each document while removing
-        punctuation for TF-IDF-style vectorization.
-
-        Args:
-            text_list (list of str): A batch containing raw Vietnamese documents/paragraphs.
-
-        Returns:
-            list of str: A list where each element is a fully preprocessed document.
-        """
+    def transform(self, text_list) -> list[str]:
+        if isinstance(text_list, (str, bytes)):
+            raise TypeError("transform expects an iterable of strings, not one string.")
         cleaned_documents = []
-
         for document in text_list:
-            document = unicodedata.normalize('NFC', document)
-
-            sentences = [document]
-            
-            cleaned_sentences = []
-            for sentence in sentences:
-                # Clean and mask for each sentence
-                sentence = self._clean_and_mask(sentence).lower()
-
-                # Tokenize
-                segmented_sentence = word_tokenize(sentence, format='text')
-
-                # Normalize Tone & Filter stopwords
-                tokens = segmented_sentence.split()
-                final_tokens = []
-                for t in tokens:
-                    # Split compound words to normalize tone for each syllable
-                    syllables = t.split('_')
-                    normalized_syllables = [normalize_word_tone(s) for s in syllables]
-                    normalized_tokens = '_'.join(normalized_syllables)
-
-                    # Filter stopwords while keeping masks
-                    if (normalized_tokens not in self.stopwords) or normalized_tokens.startswith('tok'):
-                        final_tokens.append(normalized_tokens)
-
-                # Join sentence & restore masking
-                joined_sentence = " ".join(final_tokens)
-                final_sentence = self._restore_special_tokens(joined_sentence)
-                # Ignore empty sentences(only stopwords and noise)
-                if final_sentence.strip():
-                    cleaned_sentences.append(final_sentence)
-
-            cleaned_documents.append(" ".join(cleaned_sentences))
-
+            if not isinstance(document, str):
+                raise TypeError("Each document must be a string; validate missing values before preprocessing.")
+            document = normalize_unicode(document).lower()
+            document = re.sub(r"</?[a-zA-Z]+[^>]*>", " ", document)
+            tokens = []
+            position = 0
+            # Keep real entity markers out of segmentation and stopword filtering.
+            # Literal 'TOKURL' text is never interpreted as a generated marker.
+            for match in ENTITY_PATTERN.finditer(document):
+                tokens.extend(self._segment_text(document[position:match.start()]))
+                tokens.append(f"<{match.lastgroup}>")
+                position = match.end()
+            tokens.extend(self._segment_text(document[position:]))
+            cleaned_documents.append(" ".join(tokens))
         return cleaned_documents
-            
-
-    
-# How to call class 
-# preprocessor = VietnameseTextProcessor()
-# clean_texts = preprocessor.transform(["Raw text 1", "Raw text 2"])
-
 

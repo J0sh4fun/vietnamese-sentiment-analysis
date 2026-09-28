@@ -20,6 +20,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.data_pipeline import empty_text_report
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -106,7 +108,8 @@ def main() -> None:
     model_path, split_path, metrics_path, predictions_path = resolve_paths(args)
 
     model = joblib.load(model_path)
-    split_df = pd.read_csv(split_path)
+    # Preserve intentionally empty features instead of converting them to 'nan'.
+    split_df = pd.read_csv(split_path, keep_default_na=False)
 
     required_columns = {args.text_column, args.label_column}
     missing_columns = required_columns - set(split_df.columns)
@@ -115,6 +118,7 @@ def main() -> None:
         raise ValueError(f"Missing required columns in split file: {missing}")
 
     features = split_df[args.text_column].astype(str)
+    preprocessing_report = empty_text_report(pd.DataFrame({"clean_text": features}))
     y_true = split_df[args.label_column].astype(str)
     y_pred = pd.Series(model.predict(features), index=split_df.index).astype(str)
 
@@ -132,6 +136,7 @@ def main() -> None:
         "split_path": str(split_path),
         "predictions_path": str(predictions_path),
         "metrics": metrics,
+        "preprocessing": preprocessing_report,
     }
     with metrics_path.open("w", encoding="utf-8") as file:
         json.dump(output_payload, file, ensure_ascii=False, indent=2)
@@ -142,6 +147,7 @@ def main() -> None:
         "metrics_path": str(metrics_path),
         "predictions_path": str(predictions_path),
         "f1_macro": metrics["f1_macro"],
+        "preprocessing": preprocessing_report,
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 

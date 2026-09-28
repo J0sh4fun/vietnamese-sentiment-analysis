@@ -51,11 +51,16 @@ def read_jsonl(path: Path) -> pd.DataFrame:
 
 
 def filter_text_identity(df, key, label_column, audit, stage):
-    conflicts = df.groupby(key)[label_column].transform("nunique").gt(1)
-    result = df.loc[~conflicts].drop_duplicates([key, label_column]).copy()
+    # Missing lexical content is not evidence that two original reviews are
+    # identical. Keep empty clean texts, with their distinct raw/source identity.
+    comparable = df[key].ne("") if key == "normalized_clean_text" else pd.Series(True, index=df.index)
+    conflicts = df.loc[comparable].groupby(key)[label_column].transform("nunique").gt(1)
+    conflicts = conflicts.reindex(df.index, fill_value=False)
+    duplicates = df.duplicated([key, label_column]) & comparable & ~conflicts
+    result = df.loc[~(conflicts | duplicates)].copy()
     record(audit, stage, result, label_column,
            conflicting_rows=int(conflicts.sum()),
-           duplicate_rows=int((~conflicts).sum() - len(result)))
+           duplicate_rows=int(duplicates.sum()))
     return result
 
 
@@ -64,7 +69,8 @@ def check_source_identity(df, key):
     valid_ids = df["source_id"].map(lambda x: isinstance(x, str) and bool(x.strip()) and x == x.strip())
     if not valid_ids.all():
         raise ValueError("Original source_id values must be nonempty, trimmed strings.")
-    if df.groupby(key)["source_id"].nunique().gt(1).any():
+    comparable = df.loc[df[key].ne("")] if key == "normalized_clean_text" else df
+    if comparable.groupby(key)["source_id"].nunique().gt(1).any():
         raise ValueError(f"Ambiguous original source_id: identical {key} has multiple source IDs; resolve aliases before training.")
 
 
@@ -89,12 +95,19 @@ def validate_frame(df, text_column, label_column, allowed_labels, audit, source,
 def preprocess_frame(df, text_column, label_column, processor, audit, source, check_original_ids=False):
     df = df.copy()
     df["clean_text"] = pd.Series(processor.transform(df[text_column].tolist()), index=df.index, dtype="str")
-    df = df.loc[df["clean_text"].str.strip().ne("")].copy()
     df["normalized_clean_text"] = df["clean_text"].map(normalize_text)
     if check_original_ids:
         check_source_identity(df, "normalized_clean_text")
-    record(audit, f"{source}:nonempty_preprocessed", df, label_column)
+    record(audit, f"{source}:preprocessed", df, label_column, **empty_text_report(df))
     return filter_text_identity(df, "normalized_clean_text", label_column, audit, f"{source}:after_preprocessing")
+
+
+def empty_text_report(df):
+    """Report all original rows, including zero-feature inputs, in every split."""
+    empty = int(df["clean_text"].str.strip().eq("").sum())
+    return {"input_rows": len(df), "empty_rows": empty,
+            "empty_rate": empty / len(df) if len(df) else 0.0,
+            "excluded_rows": 0, "exclusion_rate": 0.0, "empty_policy": "keep"}
 
 
 def assert_no_overlap(train, validation, test):
@@ -103,6 +116,8 @@ def assert_no_overlap(train, validation, test):
     ):
         for column in ("source_id", "normalized_text", "normalized_clean_text"):
             overlap = set(left[column]) & set(right[column])
+            if column == "normalized_clean_text":
+                overlap.discard("")  # Absence of features is not source identity.
             if overlap:
                 raise ValueError(f"Leakage: {left_name}/{right_name} share {len(overlap)} {column} values")
 
@@ -160,7 +175,9 @@ def prepare_dataset(args, processor):
     train, val, test = [original.loc[original.source_id.isin(g.source_id)].copy()
                         for g in (train_groups, val_groups, test_groups)]
     for name, frame in (("train", train), ("validation", val), ("test", test)):
-        record(audit, f"split:{name}:originals", frame, label_column)
+        record(audit, f"split:{name}:originals", frame, label_column, **empty_text_report(frame))
+    args.preprocessing_by_split = {name: empty_text_report(frame)
+        for name, frame in (("train", train), ("validation", val), ("test", test))}
     assert_no_overlap(train, val, test)
 
     sources = []
@@ -192,6 +209,12 @@ def prepare_dataset(args, processor):
                excluded_rows=len(frame) - len(eligible),
                exclusion_policy="require current training source, matching label and verified unaccented_v1 transform")
         eligible = preprocess_frame(eligible, text_column, label_column, processor, audit, name)
+        empty = eligible["clean_text"].str.strip().eq("")
+        input_count = len(eligible)
+        eligible = eligible.loc[~empty].copy()
+        record(audit, f"{name}:nonempty_augmentation", eligible, label_column,
+               input_rows=input_count, excluded_rows=int(empty.sum()),
+               exclusion_rate=int(empty.sum()) / input_count if input_count else 0.0)
         eligible["is_augmented"] = True
         accepted.append(eligible)
     if accepted:

@@ -2,6 +2,8 @@ import streamlit as st
 import joblib
 import sys
 import os
+import json
+from pathlib import Path
 
 # Trỏ đường dẫn hệ thống để gọi được class tiền xử lý
 sys.path.append(os.path.abspath('.'))
@@ -14,12 +16,14 @@ st.set_page_config(page_title="Shopee Sentiment AI", page_icon="🛒", layout="c
 # Sử dụng st.cache_resource để ứng dụng không phải load lại model mỗi khi người dùng bấm nút
 @st.cache_resource
 def load_ai_core():
-    # Khởi tạo bộ tiền xử lý
-    preprocessor = VietnameseTextProcessor()
-    
     # Thay đổi tên thư mục dưới đây thành tên thư mục model bạn vừa train ra
     # Ví dụ: 'models/20260709_180026/sentiment_pipeline.joblib'
     model_path = "models/20260710_224302/sentiment_pipeline.joblib" 
+    metadata = json.loads(Path(model_path).with_name("train_metadata.json").read_text(encoding="utf-8"))
+    if "preprocessing" not in metadata:
+        raise ValueError("This model has no saved preprocessing configuration. Retrain with the current "
+                         "pipeline and set model_path to the new run before using the app.")
+    preprocessor = VietnameseTextProcessor.from_config(metadata["preprocessing"])
     model = joblib.load(model_path)
     
     return preprocessor, model

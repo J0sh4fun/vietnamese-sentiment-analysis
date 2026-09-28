@@ -69,7 +69,7 @@ Detailed visual analysis and data mixing strategies can be found in our interact
 
 ## Train the model
 
-Run the training pipeline. The script will automatically preprocess the data, run Cross-Validation across multiple algorithms, and save the best model.
+Run the training pipeline. The script validates original data, creates fixed stratified train/validation/test splits, and selects a model using validation performance. The test split is evaluated only once after selection.
 
 ```bash
 python src/train.py --train-data data/shopee_reviews_dataset.jsonl
@@ -85,12 +85,12 @@ Optional Arguments:
 
 Training will:
 
-1. Load `data/shopee_reviews_dataset.jsonl` and `data/aug_unaccented_reviews.jsonl`
-2. Clean and normalize Vietnamese text with `src/preprocessor.py`
-3. Split data into train/validation/test sets (stratified)
-4. Train and compare candidate models on validation split
-5. Automatically select the best model
-6. Save artifacts in `models/<run_name>/`
+1. Validate and clean the original JSONL data, then assign stable source IDs.
+2. Split original source groups into training, validation and test sets.
+3. Optionally generate or import verified augmentation for training sources only.
+4. Check source-ID, normalized-text and preprocessed-text overlap across splits.
+5. Fit TF-IDF/classifiers on training only and select using validation metrics.
+6. Evaluate the selected model on test once; save artifacts in a new `models/<run_name>/` directory.
 
 Output: The best model (sentiment_pipeline.joblib) and metrics will be saved in a timestamped folder inside models/ (e.g., models/20260507_120000).
 
@@ -100,7 +100,43 @@ Training artifacts include:
 - `train_split.csv`
 - `validation_split.csv`
 - `test_split.csv`
-- `train_metadata.json`
+- `train_metadata.json` (filtering/split/augmentation counts, label distributions and overlap checks)
+- `train_augmentation.jsonl` (accepted variants with provenance; empty if none)
+
+## Leakage-safe data and augmentation
+
+The old pipeline split off test, appended augmentation, then split training/validation. A variant could therefore enter validation while its original was in training, or enter training while its original was in test. Augmentation files also bypassed validation. Existing models and scores from that procedure should be rerun before comparison.
+
+Every input source, including generated variants, uses the same validation policy: required text/label columns; nonempty string text; exact allowed string labels (default `negative positive`); accent-preserving NFC, case and whitespace normalization; removal of duplicate text/label rows; and removal of **all** rows with conflicting labels for identical normalized text. Schema errors fail the run. Missing/invalid values are filtered and counted. Stateless preprocessing also filters empty text, duplicates and conflicting labels that become identical after cleaning. These checks happen before splitting originals. No TF-IDF vocabulary or IDF is fitted during this stage.
+
+`source_id` is retained when supplied as a nonempty trimmed string; otherwise it is a SHA-256 hash of normalized original text. The old `id` column is not assumed to identify a source. Repeated source IDs stay in one split; conflicting labels within a source ID fail the run. Supplied source IDs that disagree for identical raw or cleaned text are rejected before deduplication, so dropping an alias cannot break a source group. Split ratios apply to source groups (normally one row each), with validation/test counts rounded up from the full original group count; row ratios can differ when a source has multiple original rows. `--max-samples` caps filtered originals before splitting. Small datasets that cannot support stratification fail with an explanatory error.
+
+Accent removal is **only** an augmentation operation. For example, `má` and `ma` remain separate originals and source IDs. Original examples that merely share accent-stripped text are never merged. Candidate augmentation that collides with any retained original's normalized raw or preprocessed text is excluded; validation and test remain original-only. Checks fail closed if any source ID or normalized text still crosses splits.
+
+Legacy augmentation is no longer loaded automatically. `--aug-data` is preserved, but files without `source_id`, `source_text` and `augmentation_method` are excluded with a warning. Do not infer provenance by matching accent-stripped reviews. To regenerate safely, use:
+
+```bash
+python src/train.py --train-data data/shopee_reviews_dataset.jsonl --disable-aug
+python src/train.py --train-data data/shopee_reviews_dataset.jsonl --generate-aug
+```
+
+`--generate-aug` creates unaccented variants **after** splitting, only from training originals. Accepted variants are saved to the new run's `train_augmentation.jsonl`; the legacy file is untouched. Each variant carries its original's `source_id`, exact `source_text`, label, and `augmentation_method: unaccented_v1`. Imported variants must match a current training source, its label and the declared transformation. Unknown sources, held-out sources, mismatched labels/text and unsupported methods are excluded and counted. Adding a new augmentation method requires an explicit provenance/transform verifier.
+
+To reuse a generated file, keep the original dataset and split settings fixed (seed, ratios, cap and labels). Imports are rechecked against the current split regardless:
+
+```bash
+python src/train.py --train-data data/shopee_reviews_dataset.jsonl --aug-data models/<prior_run>/train_augmentation.jsonl
+```
+
+An empty augmentation export contains no examples and should be omitted from `--aug-data`. `--aug-data` with no paths is valid. `--disable-aug` disables both imported and generated variants. Use `--allowed-labels` to declare other exact string labels; numeric labels must first be converted explicitly in the input. All existing model-selection options remain available. The metadata records counts and label distributions at each filtering stage, original splits and final splits, as well as exclusion reasons and overlap-check outcomes.
+
+Runs default to unique microsecond timestamps. An existing `--run-name` directory is rejected rather than overwritten. Choose a fresh name for every experiment. Use validation for further tuning; repeated test-driven tuning invalidates the final test estimate.
+
+Run the focused regression tests (synthetic fixtures, temporary artifacts):
+
+```bash
+python -m unittest discover -s tests -v
+```
 
 ## Evaluate the model
 

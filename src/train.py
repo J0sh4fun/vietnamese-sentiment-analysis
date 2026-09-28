@@ -11,7 +11,6 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import ComplementNB, MultinomialNB
 from sklearn.pipeline import Pipeline
 
@@ -19,11 +18,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from preprocessor import VietnameseTextProcessor
+from src.preprocessor import VietnameseTextProcessor
+from src.data_pipeline import prepare_dataset
 
 
 DEFAULT_TRAIN_DATA = PROJECT_ROOT / "data" / "shopee_reviews_dataset.jsonl"
-DEFAULT_AUG_DATA = PROJECT_ROOT / "data" / "aug_unaccented_reviews.jsonl"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "models"
 SUPPORTED_ALGORITHMS = ["logreg", "multinomial_nb", "complement_nb"]
 
@@ -42,13 +41,21 @@ def parse_args() -> argparse.Namespace:
         "--aug-data",
         type=Path,
         nargs="*",
-        default=[DEFAULT_AUG_DATA],
-        help="Optional JSONL datasets to append to training data.",
+        default=[],
+        help="Optional provenance-checked augmentation JSONL files (training sources only).",
     )
     parser.add_argument(
         "--disable-aug",
         action="store_true",
-        help="Disable loading augmentation datasets.",
+        help="Disable both imported and generated augmentation.",
+    )
+    parser.add_argument(
+        "--generate-aug", action="store_true",
+        help="Generate unaccented variants exclusively from training originals.",
+    )
+    parser.add_argument(
+        "--allowed-labels", nargs="+", default=["negative", "positive"],
+        help="Exact allowed string labels; all other labels are filtered out.",
     )
     parser.add_argument(
         "--text-column",
@@ -172,82 +179,10 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-# Read a JSONL file into a pandas DataFrame
-def read_jsonl(path: Path) -> pd.DataFrame:
-    if not path.exists():
-        raise FileNotFoundError(f"Dataset does not exist: {path}")
-    return pd.read_json(path, lines=True)
-
-# Load the dataset from JSONL files
-def load_dataset(args: argparse.Namespace) -> pd.DataFrame:
-    df = read_jsonl(args.train_data)
-
-    # Kiểm tra cột bắt buộc
-    required_columns = {args.text_column, args.label_column}
-    missing_columns = required_columns - set(df.columns)
-    if missing_columns:
-        missing = ", ".join(sorted(missing_columns))
-        raise ValueError(f"Missing required columns in dataset: {missing}")
-
-    # Lọc dữ liệu rác và trùng lặp
-    df = df.dropna(subset=[args.text_column, args.label_column]).copy()
-    df[args.text_column] = df[args.text_column].astype(str)
-    df[args.label_column] = df[args.label_column].astype(str)
-    df = df.drop_duplicates(subset=[args.text_column, args.label_column], keep="first")
-
-    # Giới hạn số lượng mẫu (dành cho chạy thử/debug)
-    if args.max_samples is not None:
-        if args.max_samples <= 0:
-            raise ValueError("--max-samples must be greater than 0.")
-        sample_size = min(args.max_samples, len(df))
-        df = df.sample(n=sample_size, random_state=args.random_state)
-
-    # Đảm bảo dữ liệu không bị rỗng sau khi lọc
-    if df.empty:
-        raise ValueError("No rows remain after loading and filtering dataset.")
-
-    return df.reset_index(drop=True)
-
-# Preprocess the dataset using VietnameseTextProcessor
-def preprocess_dataset(df: pd.DataFrame, text_column: str) -> pd.DataFrame:
-    processor = VietnameseTextProcessor()
-    cleaned_text = processor.transform(df[text_column].tolist())
-
-    processed_df = df.copy()
-    processed_df["clean_text"] = cleaned_text
-    processed_df = processed_df[processed_df["clean_text"].str.strip().ne("")]
-    if processed_df.empty:
-        raise ValueError("All rows became empty after preprocessing.")
-    return processed_df.reset_index(drop=True)
-
 def prepare_and_split_dataset(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    raw_df = load_dataset(args)
+    # Stateless text cleaning is safe before splitting; TF-IDF fits only in model.fit.
+    return prepare_dataset(args, VietnameseTextProcessor())
 
-    # Split the dataset into training+validation and test sets
-    train_val_df, test_df = train_test_split(
-        raw_df, 
-        test_size=args.test_size,
-        random_state=args.random_state,
-        stratify=raw_df[args.label_column]
-    )
-
-    # If augmentation is enabled, load and append augmented datasets
-    if not args.disable_aug:
-        aug_frames = [read_jsonl(path) for path in args.aug_data]
-        aug_df = pd.concat(aug_frames, ignore_index=True)
-        train_val_df = pd.concat([train_val_df, aug_df], ignore_index=True)
-        train_val_df = train_val_df.drop_duplicates(subset=[args.text_column, args.label_column])
-
-    # Split the training+validation set into separate training and validation sets
-    val_ratio_in_train_val = args.val_size / (1 - args.test_size)
-    train_df, val_df = train_test_split(
-        train_val_df,
-        test_size=val_ratio_in_train_val,
-        random_state=args.random_state,
-        stratify=train_val_df[args.label_column],
-    )
-
-    return train_df.reset_index(drop=True), val_df.reset_index(drop=True), test_df.reset_index(drop=True)
 
 # Resolve candidate algorithms
 def resolve_candidate_algorithms(args: argparse.Namespace) -> list[str]:
@@ -387,9 +322,12 @@ def save_artifacts(
     leaderboard: list[dict[str, object]],
     test_metrics: dict[str, float],
 ) -> Path:
-    run_name = args.run_name or datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_name = args.run_name or datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    if Path(run_name).name != run_name or run_name in {".", ".."}:
+        raise ValueError("--run-name must be a single directory name.")
     run_dir = args.output_dir / run_name
-    run_dir.mkdir(parents=True, exist_ok=True)
+    # Fail closed rather than overwrite any prior experiment.
+    run_dir.mkdir(parents=True, exist_ok=False)
 
     model_path = run_dir / "sentiment_pipeline.joblib"
     train_split_path = run_dir / "train_split.csv"
@@ -402,8 +340,20 @@ def save_artifacts(
     val_df.to_csv(validation_split_path, index=False, encoding="utf-8-sig")
     test_df.to_csv(test_split_path, index=False, encoding="utf-8-sig")
 
+    augmentation_path = run_dir / "train_augmentation.jsonl"
+    if train_df["is_augmented"].any():
+        train_df.loc[train_df["is_augmented"], [args.text_column, args.label_column,
+            "source_id", "source_text", "augmentation_method"]].to_json(
+                augmentation_path, orient="records", lines=True, force_ascii=False
+        )
+    else:
+        augmentation_path.write_text("", encoding="utf-8")
+
     output_payload = {
         "run_name": run_name,
+        "data_audit": args.data_audit,
+        "overlap_checks": args.overlap_checks,
+        "augmentation_path": str(augmentation_path),
         "dataset_paths": [str(path) for path in dataset_paths],
         "split_sizes": {
             "train": len(train_df),
@@ -439,6 +389,13 @@ def save_artifacts(
             "test_size": args.test_size,
             "val_size": args.val_size,
             "max_samples": args.max_samples,
+            "allowed_labels": args.allowed_labels,
+            "generate_aug": args.generate_aug,
+            "disable_aug": args.disable_aug,
+            "text_column": args.text_column,
+            "label_column": args.label_column,
+            "identity_normalization": "NFC + casefold + whitespace; accents preserved",
+            "source_id_policy": "supplied source_id or SHA-256 of normalized original text",
         },
     }
     with metadata_path.open("w", encoding="utf-8") as file:
@@ -449,6 +406,11 @@ def save_artifacts(
 
 def main() -> None:
     args = parse_args()
+    if args.run_name is not None:
+        if Path(args.run_name).name != args.run_name or args.run_name in {".", ".."}:
+            raise ValueError("--run-name must be a single directory name.")
+        if (args.output_dir / args.run_name).exists():
+            raise FileExistsError("Run directory already exists; choose a new --run-name.")
 
     # Tạo danh sách paths để lưu METADATA
     dataset_paths = [args.train_data]
@@ -456,10 +418,6 @@ def main() -> None:
         dataset_paths.extend(args.aug_data)
 
     train_df, val_df, test_df = prepare_and_split_dataset(args)
-
-    train_df = preprocess_dataset(train_df, args.text_column)
-    val_df = preprocess_dataset(val_df, args.text_column)
-    test_df = preprocess_dataset(test_df, args.text_column)
 
     best_model, best_entry, leaderboard, candidate_algorithms = train_and_select_best_model(
         args=args,

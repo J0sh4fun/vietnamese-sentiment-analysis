@@ -5,7 +5,6 @@ import json
 import sys
 from pathlib import Path
 
-import joblib
 import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
@@ -20,7 +19,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.data_pipeline import empty_text_report
+from src.inference import load_model
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,14 +48,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--text-column",
         type=str,
-        default="clean_text",
-        help="Feature column to pass into model.predict.",
+        default=None,
+        help="Raw-review column; defaults to the column recorded in the artifact. Never clean_text.",
     )
     parser.add_argument(
         "--label-column",
         type=str,
-        default="label",
-        help="Ground truth label column in split CSV.",
+        default=None,
+        help="Ground truth column; defaults to the column recorded in the artifact.",
     )
     return parser.parse_args()
 
@@ -107,9 +106,13 @@ def main() -> None:
     args = parse_args()
     model_path, split_path, metrics_path, predictions_path = resolve_paths(args)
 
-    model = joblib.load(model_path)
+    model = load_model(model_path)
+    args.text_column = args.text_column or model.raw_text_column
+    args.label_column = args.label_column or model.label_column
+    if args.text_column in {"clean_text", "normalized_text", "normalized_clean_text"}:
+        raise ValueError("Evaluation requires raw reviews, not a preprocessed column. Omit --text-column to use the artifact setting.")
     # Preserve intentionally empty features instead of converting them to 'nan'.
-    split_df = pd.read_csv(split_path, keep_default_na=False)
+    split_df = pd.read_csv(split_path, keep_default_na=False, dtype={args.text_column: str, args.label_column: str})
 
     required_columns = {args.text_column, args.label_column}
     missing_columns = required_columns - set(split_df.columns)
@@ -117,20 +120,27 @@ def main() -> None:
         missing = ", ".join(sorted(missing_columns))
         raise ValueError(f"Missing required columns in split file: {missing}")
 
-    features = split_df[args.text_column].astype(str)
-    preprocessing_report = empty_text_report(pd.DataFrame({"clean_text": features}))
+    if split_df.empty:
+        raise ValueError("Cannot evaluate an empty split.")
+    results = model.infer(split_df[args.text_column])
+    empty_count = sum(row["empty_after_preprocessing"] for row in results)
+    preprocessing_report = {"input_rows": len(results), "empty_rows": empty_count,
+        "empty_rate": empty_count / len(results), "excluded_rows": 0,
+        "exclusion_rate": 0.0, "empty_policy": "keep"}
     y_true = split_df[args.label_column].astype(str)
-    y_pred = pd.Series(model.predict(features), index=split_df.index).astype(str)
+    y_pred = pd.Series([row["label"] for row in results], index=split_df.index).astype(str)
 
     labels = sorted(set(y_true.tolist()) | set(y_pred.tolist()))
     metrics = evaluate_predictions(y_true=y_true, y_pred=y_pred, labels=labels)
 
     predictions_df = split_df.copy()
     predictions_df["predicted_label"] = y_pred
+    predictions_df["empty_after_preprocessing"] = [row["empty_after_preprocessing"] for row in results]
     predictions_df.to_csv(predictions_path, index=False, encoding="utf-8-sig")
 
     output_payload = {
         "run_dir": str(args.run_dir),
+        "artifact_version": model.artifact_version,
         "split": args.split,
         "model_path": str(model_path),
         "split_path": str(split_path),

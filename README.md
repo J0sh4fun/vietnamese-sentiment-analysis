@@ -159,11 +159,38 @@ metadata = json.loads(Path("models/<run_name>/train_metadata.json").read_text(en
 processor = VietnameseTextProcessor.from_config(metadata["preprocessing"])
 ```
 
-Restoration rejects unsupported settings or runtime mismatches. The Streamlit app now restores this configuration alongside the model; models without it require retraining and updating `model_path`. Existing artifacts are not rewritten. For an explicit diagnostic comparison only, `--legacy-tone-repositioning` enables the still-defective custom heuristic before segmentation and emits a warning. This flag does not recreate every behavior of the old pipeline. These correctness changes do not establish an F1 improvement.
+Restoration rejects unsupported settings or runtime mismatches. This standalone processor API is for inspection and data preparation; do not use it before calling the inference artifact. The artifact restores its own saved configuration. Existing artifacts are not rewritten. For an explicit diagnostic comparison only, `--legacy-tone-repositioning` enables the still-defective custom heuristic before segmentation and emits a warning. This flag does not recreate every behavior of the old pipeline. These correctness changes do not establish an F1 improvement.
+
+## Raw-text inference and artifact migration
+
+New `sentiment_pipeline.joblib` files contain a **version-2 `SentimentModel` wrapper**, bundling the fitted TF-IDF/classifier and its exact preprocessing configuration. A wrapper preserves the audited training-data preparation while giving evaluation, CLI prediction and Streamlit one raw-review path. Preprocessing runs exactly once per inference request. Training still fits TF-IDF only on the prepared training features; the selected model's final test evaluation uses the raw-review wrapper.
+
+Run from the repository root with the recorded dependency versions:
+
+```bash
+python src/train.py --disable-aug
+python src/predict.py --model-path models/<new_run>/sentiment_pipeline.joblib --text "Máy khuấy tốt" "Không hài lòng" --probabilities
+```
+
+The training command prints its new run directory. To generate training-only augmentation, replace `--disable-aug` with `--generate-aug`. Training refuses to overwrite an existing run.
+
+```python
+from src.inference import load_model
+
+model = load_model("models/<new_run>/sentiment_pipeline.joblib")
+labels = model.predict(["Máy khuấy tốt", "Không hài lòng"])
+results = model.infer(["Máy khuấy tốt", "!!!"], include_probabilities=True)
+```
+
+Pass **raw text**, never `clean_text` or a call to `processor.transform()`. `predict()` returns labels. `predict_proba()` returns a matrix whose columns follow `model.classes_`. `infer()` returns labels, `empty_after_preprocessing` flags and optional label-keyed probabilities, using `classes_` for the mapping. Use `infer()` when requesting both labels and probabilities so preprocessing runs once. These are uncalibrated model probabilities, not a guarantee that a prediction is correct. The predicted label comes from the classifier's `predict()` rather than a second UI-specific threshold rule.
+
+One raw string or an ordered iterable of raw strings is accepted. Missing values (`None`, NaN), numbers, bytes, nested inputs, mappings and unordered sets raise `TypeError`; inputs are never silently stringified. An empty batch returns an empty result. Empty/whitespace or fully filtered reviews remain zero-feature inputs, are flagged by `infer()`, and are included in evaluation. Streamlit displays the same prediction with an empty-input warning.
+
+Legacy unversioned TF-IDF-only artifacts are **rejected**, even if a preprocessing metadata file exists. Retrain into a fresh run and point clients to that version-2 artifact. There is no automatic conversion that guesses which preprocessing was used. Unsupported artifact/configuration/runtime versions fail explicitly. Version and raw input contract are recorded both in the artifact and `train_metadata.json`; loading does not depend on a separate metadata file. Direct `joblib.load()` of a new version-2 artifact also restores the recorded processor, but `load_model()` is the supported entry point because it additionally rejects legacy bare pipelines.
 
 ## Evaluate the model
 
-Evaluate the trained model on the test split to generate the Classification Report, Confusion Matrix, and Prediction outputs
+Evaluate the trained model on the test split to generate the Classification Report, Confusion Matrix, and Prediction outputs. Evaluation reads the original raw-review column recorded in the artifact (`review` by default) and calls the same `infer()` method as Streamlit. The saved `clean_text` column is retained only for audit purposes. `--text-column` can name another raw column; explicitly selecting a known preprocessed column is rejected. The label-column default also comes from the artifact.
 
 ```bash
 python src/evaluate.py --run-dir models/<run_name> --split test
@@ -196,15 +223,17 @@ python src/train.py --algorithms logreg multinomial_nb complement_nb --selection
 
 ## Interactive Web App (Streamlit)
 
-You can test the trained model directly through an interactive web application. The interface allows you to input custom Vietnamese reviews and provides real-time sentiment predictions along with confidence scores (probability percentages).
+You can test the trained model through an interactive web application. It displays sentiment predictions and uncalibrated model probabilities, labelled as estimates rather than prediction-correctness guarantees.
 
 ### 1. Start the App
-Before running the app, ensure you have successfully trained a model and that the `model_path` in `app.py` points to your latest `.joblib` artifact. 
+Select a newly trained version-2 artifact using `SENTIMENT_MODEL_PATH`; editing `app.py` is unnecessary.
 
 Run the following command from the root directory:
 
-```bash
-streamlit run app.py
+```powershell
+$env:SENTIMENT_MODEL_PATH = "models/<new_run>/sentiment_pipeline.joblib"
+python -m streamlit run app.py
+```
 
 ## Author 
 josh4fun

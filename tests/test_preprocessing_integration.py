@@ -26,6 +26,8 @@ class PreprocessingIntegrationTests(unittest.TestCase):
             with patch("sys.argv", argv), contextlib.redirect_stdout(io.StringIO()):
                 train.main()
             metadata = json.loads((root / "new" / "train_metadata.json").read_text(encoding="utf-8"))
+            self.assertEqual(metadata["artifact_version"], 2)
+            self.assertEqual(metadata["inference_input"], "raw_text")
             processor = VietnameseTextProcessor.from_config(metadata["preprocessing"])
             self.assertEqual(processor.transform(["khuấy"]), ["khuấy"])
             self.assertFalse(metadata["preprocessing"]["settings"]["tokenizer_token_normalization"])
@@ -41,15 +43,23 @@ class PreprocessingIntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "sentiment_pipeline.joblib").touch()
-            pd.DataFrame({"clean_text": ["", "tốt"], "label": ["negative", "positive"]}).to_csv(
+            pd.DataFrame({"review": ["!!!", "TỐT"], "clean_text": ["stale", "stale"],
+                          "label": ["negative", "positive"]}).to_csv(
                 root / "test_split.csv", index=False, encoding="utf-8-sig")
             model = Mock()
-            model.predict.return_value = ["negative", "positive"]
+            model.raw_text_column = "review"
+            model.label_column = "label"
+            model.artifact_version = 2
+            model.infer.return_value = [
+                {"label": "negative", "empty_after_preprocessing": True},
+                {"label": "positive", "empty_after_preprocessing": False},
+            ]
             with patch("sys.argv", ["evaluate.py", "--run-dir", str(root)]), \
-                    patch("src.evaluate.joblib.load", return_value=model), \
+                    patch("src.evaluate.load_model", return_value=model), \
                     contextlib.redirect_stdout(io.StringIO()):
                 evaluate.main()
-            self.assertEqual(model.predict.call_args.args[0].tolist(), ["", "tốt"])
+            self.assertEqual(model.infer.call_args.args[0].tolist(), ["!!!", "TỐT"])
+            model.infer.assert_called_once()
             result = json.loads((root / "test_metrics.json").read_text(encoding="utf-8"))
             report = result["preprocessing"]
             self.assertEqual(report["input_rows"], 2)
@@ -58,7 +68,7 @@ class PreprocessingIntegrationTests(unittest.TestCase):
             self.assertEqual(report["excluded_rows"], 0)
             predictions = pd.read_csv(root / "test_predictions.csv", keep_default_na=False)
             self.assertEqual(len(predictions), 2)
-            self.assertEqual(predictions.clean_text.iloc[0], "")
+            self.assertTrue(predictions.empty_after_preprocessing.iloc[0])
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.preprocessor import VietnameseTextProcessor
 from src.data_pipeline import prepare_dataset
+from src.inference import SentimentModel
 
 
 DEFAULT_TRAIN_DATA = PROJECT_ROOT / "data" / "shopee_reviews_dataset.jsonl"
@@ -225,7 +226,7 @@ def build_classifier(args: argparse.Namespace, num_classes: int, algorithm: str)
         return ComplementNB(alpha=args.nb_alpha)
     raise ValueError(f"Unsupported algorithm: {algorithm}")
 
-# Build a complete model pipeline with TF-IDF vectorization and the specified classifier
+# Internal clean-text training estimator; the exported artifact wraps raw-text inference.
 def build_model(args: argparse.Namespace, num_classes: int, algorithm: str) -> Pipeline:
     if args.ngram_min <= 0 or args.ngram_max < args.ngram_min:
         raise ValueError("n-gram range is invalid. Ensure 0 < ngram_min <= ngram_max.")
@@ -320,7 +321,7 @@ def train_and_select_best_model(
 # Save training artifacts to disk
 def save_artifacts(
     args: argparse.Namespace,
-    model: Pipeline,
+    model: SentimentModel,
     train_df: pd.DataFrame,
     val_df: pd.DataFrame,
     test_df: pd.DataFrame,
@@ -359,8 +360,10 @@ def save_artifacts(
 
     output_payload = {
         "run_name": run_name,
+        "artifact_version": model.artifact_version,
+        "inference_input": "raw_text",
         "data_audit": args.data_audit,
-        "preprocessing": args.preprocessing_config,
+        "preprocessing": model.preprocessing_config,
         "preprocessing_by_split": args.preprocessing_by_split,
         "overlap_checks": args.overlap_checks,
         "augmentation_path": str(augmentation_path),
@@ -436,7 +439,12 @@ def main() -> None:
         label_column=args.label_column,
     )
 
-    y_test_pred = pd.Series(best_model.predict(test_df["clean_text"]), index=test_df.index).astype(str)
+    # The exported object accepts raw reviews; its settings are those used to
+    # produce the clean training features, never whatever defaults exist later.
+    best_model = SentimentModel(best_model, args.preprocessing_config,
+                               raw_text_column=args.text_column, label_column=args.label_column)
+    test_results = best_model.infer(test_df[args.text_column])
+    y_test_pred = pd.Series([row["label"] for row in test_results], index=test_df.index).astype(str)
     test_metrics = evaluate_predictions(
         y_true=test_df[args.label_column].astype(str),
         y_pred=y_test_pred,

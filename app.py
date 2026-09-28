@@ -1,97 +1,48 @@
-import streamlit as st
-import joblib
-import sys
 import os
-import json
-from pathlib import Path
 
-# Trỏ đường dẫn hệ thống để gọi được class tiền xử lý
-sys.path.append(os.path.abspath('.'))
-from src.preprocessor import VietnameseTextProcessor
+import streamlit as st
 
-# Cấu hình giao diện trang web
-st.set_page_config(page_title="Shopee Sentiment AI", page_icon="🛒", layout="centered")
+from src.inference import load_model
 
-# --- 1. TẢI MÔ HÌNH VÀ PREPROCESSOR VÀO BỘ NHỚ (CACHE) ---
-# Sử dụng st.cache_resource để ứng dụng không phải load lại model mỗi khi người dùng bấm nút
+
 @st.cache_resource
-def load_ai_core():
-    # Thay đổi tên thư mục dưới đây thành tên thư mục model bạn vừa train ra
-    # Ví dụ: 'models/20260709_180026/sentiment_pipeline.joblib'
-    model_path = "models/20260710_224302/sentiment_pipeline.joblib" 
-    metadata = json.loads(Path(model_path).with_name("train_metadata.json").read_text(encoding="utf-8"))
-    if "preprocessing" not in metadata:
-        raise ValueError("This model has no saved preprocessing configuration. Retrain with the current "
-                         "pipeline and set model_path to the new run before using the app.")
-    preprocessor = VietnameseTextProcessor.from_config(metadata["preprocessing"])
-    model = joblib.load(model_path)
-    
-    return preprocessor, model
+def load_ai_core(model_path):
+    return load_model(model_path)
 
-preprocessor, model = load_ai_core()
 
-# --- 2. XÂY DỰNG GIAO DIỆN NGƯỜI DÙNG ---
-st.title("Phân Tích Cảm Xúc Đánh Giá Shopee")
-st.markdown("Nhập một đoạn đánh giá sản phẩm bằng tiếng Việt vào ô bên dưới, AI sẽ dự đoán xem đây là đánh giá **Tích cực** hay **Tiêu cực**.")
+def main():
+    st.set_page_config(page_title="Shopee Sentiment AI", page_icon="🛒", layout="centered")
+    st.title("Phân Tích Cảm Xúc Đánh Giá Shopee")
+    model_path = os.environ.get("SENTIMENT_MODEL_PATH")
+    if not model_path:
+        st.info("Đặt SENTIMENT_MODEL_PATH trỏ tới sentiment_pipeline.joblib của lần huấn luyện mới.")
+        st.stop()
+    try:
+        model = load_ai_core(model_path)
+    except (OSError, ValueError) as error:
+        st.error(str(error))
+        st.stop()
 
-# Ô nhập liệu
-user_input = st.text_area("Nhập bình luận của bạn tại đây:", height=150, placeholder="Ví dụ: Sản phẩm này giao hàng nhanh, chất lượng tuyệt vời!")
-
-# Nút bấm phân tích
-if st.button("Phân tích cảm xúc"):
-    if not user_input.strip():
-        st.warning("Vui lòng nhập nội dung đánh giá trước khi phân tích!")
-    else:
+    user_input = st.text_area("Nhập bình luận của bạn tại đây:", height=150,
+                              placeholder="Ví dụ: Sản phẩm này giao hàng nhanh, chất lượng tốt!")
+    if st.button("Phân tích cảm xúc"):
         with st.spinner("AI đang xử lý..."):
-            # Bước 1: Làm sạch dữ liệu thông qua Preprocessor
-            # Hàm transform nhận vào một list và trả ra một list
-            cleaned_text_list = preprocessor.transform([user_input])
-            
-            # Kiểm tra xem sau khi làm sạch câu có bị rỗng không (ví dụ: chỉ gõ toàn icon)
-            if not cleaned_text_list or not cleaned_text_list[0].strip():
-                st.error("Câu văn sau khi làm sạch không chứa từ vựng hợp lệ. Vui lòng thử lại!")
-            else:
-                cleaned_text = cleaned_text_list[0]
-                
-                # Bước 2: Đưa vào mô hình dự đoán (Lấy xác suất)
-                # Hàm predict_proba trả về mảng xác suất cho từng nhãn
-                probabilities = model.predict_proba([cleaned_text])[0]
-                
-                # Lấy danh sách các nhãn mà mô hình đã học (thường là ['negative', 'positive'])
-                classes = model.classes_
-                
-                # Ghép nhãn và xác suất tương ứng thành một dictionary
-                prob_dict = dict(zip(classes, probabilities))
-                
-                # Chuyển đổi sang phần trăm
-                pos_prob = prob_dict.get('positive', 0.0) * 100
-                neg_prob = prob_dict.get('negative', 0.0) * 100
-                
-                # Xác định nhãn chiến thắng (nhãn có phần trăm cao hơn)
-                prediction = 'positive' if pos_prob > neg_prob else 'negative'
-                
-                # Bước 3: Hiển thị kết quả trực quan
-                st.divider()
-                st.subheader("Kết quả dự đoán:")
-                
-                # Hiển thị thông báo chính
-                if prediction == 'positive':
-                    st.success(f"🟢 Đây là đánh giá TÍCH CỰC (Độ tự tin: {pos_prob:.2f}%)")
-                else:
-                    st.error(f"🔴 Đây là đánh giá TIÊU CỰC (Độ tự tin: {neg_prob:.2f}%)")
-                
-                # Hiển thị thanh tiến trình (Progress bar) cho từng nhãn
-                st.markdown("### Chi tiết phân tích:")
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.metric(label="Tích cực (Positive)", value=f"{pos_prob:.2f}%")
-                    # Streamlit progress bar nhận giá trị từ 0 đến 100
-                    st.progress(int(pos_prob))
-                    
-                with col2:
-                    st.metric(label="Tiêu cực (Negative)", value=f"{neg_prob:.2f}%")
-                    st.progress(int(neg_prob))
-                
-                # Debug
-                # st.info(f"**Văn bản sau khi làm sạch (Tiền xử lý):** {cleaned_text}")
+            result = model.infer([user_input], include_probabilities=True)[0]
+        if result["empty_after_preprocessing"]:
+            st.warning("Không còn từ vựng sau tiền xử lý. Dự đoán dưới đây dùng đầu vào không có đặc trưng văn bản.")
+        st.subheader("Kết quả dự đoán:")
+        prediction = result["label"]
+        if prediction == "positive":
+            st.success("🟢 TÍCH CỰC")
+        elif prediction == "negative":
+            st.error("🔴 TIÊU CỰC")
+        else:
+            st.write(prediction)
+        st.caption("Xác suất do mô hình ước tính, chưa hiệu chỉnh; không phải xác suất bảo đảm dự đoán đúng.")
+        for label, probability in result["probabilities"].items():
+            st.metric(label=label, value=f"{probability:.2%}")
+            st.progress(float(probability))
+
+
+if __name__ == "__main__":
+    main()

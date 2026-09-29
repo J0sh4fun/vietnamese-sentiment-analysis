@@ -158,13 +158,16 @@ class VietnameseTextProcessor:
     disabled because the legacy heuristic has known counterexamples.
     """
 
-    IMPLEMENTATION_VERSION = 2
+    IMPLEMENTATION_VERSION = 3
 
-    def __init__(self, *, tone_repositioning=False, remove_stopwords=True, stopwords=None):
-        if type(tone_repositioning) is not bool or type(remove_stopwords) is not bool:
+    def __init__(self, *, tone_repositioning=False, remove_stopwords=True, stopwords=None,
+                 word_segmentation=True):
+        if any(type(value) is not bool for value in
+               (tone_repositioning, remove_stopwords, word_segmentation)):
             raise TypeError("Preprocessing switches must be booleans.")
         self.tone_repositioning = tone_repositioning
         self.remove_stopwords = remove_stopwords
+        self.word_segmentation = word_segmentation
         self.negation_words = NEGATION_WORDS
         words = VIETNAMESE_STOPWORDS if stopwords is None else stopwords
         canonical_words = {stopword_key(word) for word in words}
@@ -182,6 +185,7 @@ class VietnameseTextProcessor:
                 "unicode_normalization": "NFC",
                 "tone_repositioning": self.tone_repositioning,
                 "tokenizer_token_normalization": False,
+                "word_segmentation": self.word_segmentation,
                 "lowercase": True,
                 "remove_stopwords": self.remove_stopwords,
                 "empty_policy": "keep",
@@ -198,8 +202,15 @@ class VietnameseTextProcessor:
         """Restore exactly; fail rather than silently substitute settings/runtime."""
         settings = config["settings"]
         processor = cls(tone_repositioning=settings["tone_repositioning"],
-                        remove_stopwords=settings["remove_stopwords"], stopwords=config["stopwords"])
-        if processor.to_config() != config:
+                        remove_stopwords=settings["remove_stopwords"], stopwords=config["stopwords"],
+                        word_segmentation=settings.get("word_segmentation", True))
+        restored = processor.to_config()
+        if config.get("implementation_version") == 2:
+            # Version 2 always segmented. This explicit migration preserves that
+            # exact behavior; an old model never gains a new preprocessing path.
+            restored["implementation_version"] = 2
+            del restored["settings"]["word_segmentation"]
+        if restored != config:
             raise ValueError("Unsupported preprocessing configuration or runtime mismatch; "
                              "use the recorded implementation and dependency versions.")
         return processor
@@ -217,7 +228,8 @@ class VietnameseTextProcessor:
                 match.group(), reposition=True), text)
         # The segmenter also has a spelling/tone normalizer enabled by default.
         # Disable that independently; NFC is already handled explicitly above.
-        tokens = word_tokenize(text, format="text", use_token_normalize=False).split()
+        tokens = (word_tokenize(text, format="text", use_token_normalize=False).split()
+                  if self.word_segmentation else text.split())
         return [token for token in tokens if not self.remove_stopwords
                 or stopword_key(token) not in self.stopwords
                 or self.negation_words.intersection(stopword_key(token).split("_"))]

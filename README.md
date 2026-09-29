@@ -102,6 +102,39 @@ Training artifacts include:
 - `test_split.csv`
 - `train_metadata.json` (filtering/split/augmentation counts, label distributions and overlap checks)
 - `train_augmentation.jsonl` (accepted variants with provenance; empty if none)
+- `environment.json` (observed Python, platform, installed dependency versions and numerical-library/thread information)
+- `requirements-resolved.txt` (installed-version snapshot for that run's environment)
+
+## Experiment provenance and safe reruns
+
+Metadata schema version 2 records requested options and the **effective configuration** after overrides (`--algorithm` overrides `--algorithms`; `--disable-aug` disables generated and imported augmentation). It also stores the selected estimator's actual parameters, random seed, exact preprocessing settings, per-split label distributions, imported/generated/accepted/excluded augmentation counts, and the detailed filtering audit. Split distributions describe the final rows, including training augmentation; original-only distributions remain in the audit.
+
+Each loaded dataset gets a SHA-256 digest and byte count from the exact bytes consumed by the JSONL reader. These hashes include row order, line endings and any BOM. Disabled augmentation files are not read or fingerprinted. Exported model, splits, augmentation and environment files have their own hashes in metadata. Git HEAD and dirty status are captured when available; otherwise revision/dirty are explicitly null. Source and test file fingerprints distinguish uncommitted working-tree code from the recorded commit. Preserve the matching source changes as well as the commit to reproduce a dirty-tree run.
+
+The seed is applied to Python `random`, NumPy, pandas sampling, stratified splitting and Logistic Regression's supported `random_state`. Naive Bayes and the fixed CRF tokenizer have no stochastic fitting step in this pipeline. Repeated seeds do not guarantee bit-for-bit results across Python/package versions, operating systems, BLAS/OpenMP builds, CPU architectures or thread settings. The environment snapshot records those numerical libraries and relevant environment variables when observable. `PYTHONHASHSEED` must be set **before** Python starts if you want to control hash randomization; setting it inside the program would not do so. The code does not claim to force universal deterministic execution.
+
+Run directories are never reused or overwritten, and there is no overwrite flag. Default names include microseconds. An existing `--run-name` fails before data preparation; directory creation also refuses reuse if another process creates it during training. A failed save may leave a partial new directory: retain it for diagnosis and choose a new name. Evaluation likewise refuses existing metrics or prediction files; use `--output-dir` to write a repeat evaluation elsewhere without changing the run.
+
+```powershell
+# New run with the same seed/configuration; use another run-name for each rerun.
+.venv/Scripts/python.exe src/train.py --random-state 42 --generate-aug --run-name repro_seed42_a
+
+# Write evaluation outside the run directory.
+.venv/Scripts/python.exe src/evaluate.py --run-dir models/repro_seed42_a --split test --output-dir models/repro_seed42_a_evaluation
+
+# Focused provenance, seed, relocation and overwrite-protection tests.
+.venv/Scripts/python.exe -m unittest discover -s tests -p test_experiments.py -v
+```
+
+The split ratios must be finite, strictly between zero and one, and sum to less than one. Seeds must be unsigned 32-bit integers. Sample/feature/iteration counts and minimum document frequency must be positive integers; regularization and NB smoothing must be finite and positive. The CLI also checks input files and portable run names. Datasets too small for stratification still fail with an explanation of the required adjustment.
+
+Artifact filenames in training metadata are relative to the run directory. Copy the **whole run directory** and resolve these filenames against its new location. Input references marked `base_directory` are relative to the project root; external inputs carry a basename plus `relocation_required` and must be remapped using their fingerprints. Evaluation references are relative to the evaluation JSON's directory where possible; external references are explicitly marked. The saved inference object has no dependency on its original filesystem location. Metadata schema version 2 is separate from the inference artifact's version 2.
+
+## Verified dependency environment
+
+`requirements.txt` contains broad dependency ranges, not a tested lockfile. [docs/verified-environment.json](docs/verified-environment.json) records the actual inspected Windows environment used for these regression tests: CPython 3.13.5, NumPy 2.5.1, pandas 3.0.3, SciPy 1.18.0, scikit-learn 1.9.0, underthesea 9.5.0, underthesea_core 3.3.2, joblib 1.5.3, Streamlit 1.59.2 and threadpoolctl 3.6.0. These values were read from the running interpreter/installed distribution metadata, not inferred from requirements. Other installed distributions in the snapshot were not all independently exercised. Although the original requirements declare `torch`, it was **not installed** in this test environment; no PyTorch behavior was verified, and the current TF-IDF/CRF path did not require it.
+
+For a historical run, use its own `environment.json` and `requirements-resolved.txt`, matching the recorded Python version and platform in an isolated environment. Installing that snapshot is a starting point, not a cross-platform lock or a guarantee of future wheel availability. No clean-environment reinstall or non-Windows run was performed. This environment emits a joblib/NumPy deprecation warning during loading; the artifact round-trip tests pass. Keep package versions and data/code fingerprints fixed when comparing reruns.
 
 ## Leakage-safe data and augmentation
 
@@ -200,6 +233,8 @@ Evaluation outputs:
 
 - `<split>_predictions.csv`
 - `<split>_metrics.json`
+
+The metrics JSON includes `metrics.labels`, in classifier class order, alongside `metrics.confusion_matrix`. Matrix rows are true labels and columns are predicted labels, both in that recorded order. Absent model classes remain in the matrix, and unknown or empty ground-truth labels are rejected. Macro evaluation scores and the classification report use the same explicit label list.
 
 ### Useful options
 

@@ -12,6 +12,8 @@ from pathlib import Path
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+from src.experiments import path_reference, validate_split_parameters
+
 
 def normalize_text(text: str) -> str:
     """Identity normalization deliberately preserves Vietnamese accents."""
@@ -36,8 +38,12 @@ def record(audit: list, stage: str, df: pd.DataFrame, label_column: str, **detai
 def read_jsonl(path: Path) -> pd.DataFrame:
     # Do not let pandas silently coerce IDs, labels or numeric-looking text.
     rows = []
-    with path.open(encoding="utf-8-sig") as handle:
-        for number, line in enumerate(handle, 1):
+    digest, size = hashlib.sha256(), 0
+    with path.open("rb") as handle:
+        for number, raw_line in enumerate(handle, 1):
+            digest.update(raw_line)
+            size += len(raw_line)
+            line = raw_line.decode("utf-8-sig" if number == 1 else "utf-8")
             if not line.strip():
                 continue
             try:
@@ -47,7 +53,9 @@ def read_jsonl(path: Path) -> pd.DataFrame:
             if not isinstance(row, dict):
                 raise ValueError(f"{path}:{number}: expected a JSON object")
             rows.append(row)
-    return pd.DataFrame(rows)
+    frame = pd.DataFrame(rows)
+    frame.attrs["input_fingerprint"] = {**path_reference(path), "sha256": digest.hexdigest(), "size_bytes": size}
+    return frame
 
 
 def filter_text_identity(df, key, label_column, audit, stage):
@@ -136,14 +144,14 @@ def prepare_dataset(args, processor):
     args.data_audit = audit
     text_column, label_column = args.text_column, args.label_column
     allowed_labels = getattr(args, "allowed_labels", ["negative", "positive"])
-    if not 0 < args.test_size < 1 or not 0 < args.val_size < 1 or args.test_size + args.val_size >= 1:
-        raise ValueError("Split sizes must be positive and --test-size + --val-size must be less than 1.")
+    validate_split_parameters(args)
     if text_column == label_column or {text_column, label_column} & {
         "source_id", "source_text", "augmentation_method", "is_augmented", "clean_text",
         "normalized_text", "normalized_clean_text"
     }:
         raise ValueError("Text and label columns must be distinct and cannot use reserved pipeline column names.")
     raw = read_jsonl(args.train_data)
+    args.data_sources = [{"role": "original", **raw.attrs["input_fingerprint"]}]
     original = validate_frame(raw, text_column, label_column, allowed_labels, audit, "original", check_original_ids=True)
     if "source_id" not in original:
         original["source_id"] = original[text_column].map(source_id_for)
@@ -182,7 +190,10 @@ def prepare_dataset(args, processor):
 
     sources = []
     if not args.disable_aug:
-        sources.extend((str(path), read_jsonl(path)) for path in args.aug_data)
+        for path in args.aug_data:
+            frame = read_jsonl(path)
+            args.data_sources.append({"role": "augmentation", **frame.attrs["input_fingerprint"]})
+            sources.append((str(path), frame))
         if getattr(args, "generate_aug", False):
             sources.append(("generated:unaccented_v1", generate_unaccented(train, text_column, label_column)))
     accepted = []

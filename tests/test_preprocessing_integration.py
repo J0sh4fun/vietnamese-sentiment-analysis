@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pandas as pd
+import numpy as np
 
 from src import evaluate, train
 from src.preprocessor import VietnameseTextProcessor
@@ -50,6 +51,7 @@ class PreprocessingIntegrationTests(unittest.TestCase):
             model.raw_text_column = "review"
             model.label_column = "label"
             model.artifact_version = 2
+            model.classes_ = np.array(["negative", "positive"])
             model.infer.return_value = [
                 {"label": "negative", "empty_after_preprocessing": True},
                 {"label": "positive", "empty_after_preprocessing": False},

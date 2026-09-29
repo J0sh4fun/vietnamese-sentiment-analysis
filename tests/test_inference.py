@@ -141,7 +141,8 @@ class InferenceTests(unittest.TestCase):
         output = pd.read_csv(self.root / "test_predictions.csv", keep_default_na=False)
         self.assertEqual(output.predicted_label.tolist(), [row["label"] for row in expected])
         self.assertEqual(output.empty_after_preprocessing.tolist(), [row["empty_after_preprocessing"] for row in expected])
-        with patch("sys.argv", ["evaluate.py", "--run-dir", str(self.root), "--text-column", "clean_text"]):
+        with patch("sys.argv", ["evaluate.py", "--run-dir", str(self.root), "--text-column", "clean_text",
+                                "--output-dir", str(self.root / "invalid-column-check")]):
             with self.assertRaisesRegex(ValueError, "raw reviews"):
                 evaluate.main()
 

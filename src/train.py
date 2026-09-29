@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import joblib
@@ -21,6 +21,9 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.preprocessor import VietnameseTextProcessor
 from src.data_pipeline import prepare_dataset
 from src.inference import SentimentModel
+from src.experiments import (code_snapshot, environment_snapshot, experiment_config,
+    file_fingerprint, json_value, path_reference, seed_everything, validate_run_name,
+    validate_training_args)
 
 
 DEFAULT_TRAIN_DATA = PROJECT_ROOT / "data" / "shopee_reviews_dataset.jsonl"
@@ -219,6 +222,7 @@ def build_classifier(args: argparse.Namespace, num_classes: int, algorithm: str)
             max_iter=args.max_iter,
             class_weight=class_weight,
             solver=solver,
+            random_state=args.random_state,
         )
     if algorithm == "multinomial_nb":
         return MultinomialNB(alpha=args.nb_alpha)
@@ -263,6 +267,8 @@ def train_and_select_best_model(
     label_column: str,
 ) -> tuple[Pipeline, dict[str, object], list[dict[str, object]], list[str]]:
     candidate_algorithms = resolve_candidate_algorithms(args)
+    if args.min_df > len(train_df):
+        raise ValueError("--min-df exceeds the number of training rows; lower --min-df or use more data.")
     if train_df["clean_text"].str.strip().eq("").all():
         raise ValueError("All training inputs became empty; TF-IDF cannot fit a vocabulary.")
     num_classes = train_df[label_column].nunique()
@@ -332,8 +338,7 @@ def save_artifacts(
     test_metrics: dict[str, float],
 ) -> Path:
     run_name = args.run_name or datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    if Path(run_name).name != run_name or run_name in {".", ".."}:
-        raise ValueError("--run-name must be a single directory name.")
+    validate_run_name(run_name)
     run_dir = args.output_dir / run_name
     # Fail closed rather than overwrite any prior experiment.
     run_dir.mkdir(parents=True, exist_ok=False)
@@ -358,28 +363,66 @@ def save_artifacts(
     else:
         augmentation_path.write_text("", encoding="utf-8")
 
+    environment_path = run_dir / "environment.json"
+    environment_path.write_text(json.dumps(args.environment, ensure_ascii=False, indent=2), encoding="utf-8")
+    requirements_path = run_dir / "requirements-resolved.txt"
+    requirements_path.write_text(
+        "# Observed installed versions; use the recorded Python/platform. Not a cross-platform lockfile.\n"
+        + "".join(f"{name}=={version}\n" for name, version in args.environment["packages"].items()), encoding="utf-8")
+    artifacts = [model_path, train_split_path, validation_split_path, test_split_path,
+                 augmentation_path, environment_path, requirements_path]
+    audit = [dict(entry) for entry in args.data_audit]
+    for entry in audit:
+        for path in dataset_paths:
+            if entry["stage"].startswith(str(path) + ":"):
+                entry["stage"] = path_reference(path)["path"] + entry["stage"][len(str(path)):]
+                break
+    imported_rows = sum(entry["samples"] for entry in args.data_audit
+                        if entry["stage"] in {f"{path}:before_validation" for path in dataset_paths[1:]})
+    generated_rows = sum(entry["samples"] for entry in args.data_audit
+                         if entry["stage"] == "generated:unaccented_v1:before_validation")
+    augmented_rows = int(train_df["is_augmented"].sum())
+
     output_payload = {
         "run_name": run_name,
+        "metadata_schema_version": 2,
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        **args.experiment_config,
+        "random_seed": args.random_state,
+        "seeded_components": ["random", "numpy", "sampling_and_splits", "logistic_regression"],
+        "environment": args.environment,
+        "code": args.code_snapshot,
+        "data_sources": args.data_sources,
+        "path_conventions": {"artifacts": "relative to this metadata file",
+                             "input_base_directory": "project root; external inputs require relocation by fingerprint"},
+        "artifact_fingerprints": {path.name: file_fingerprint(path) for path in artifacts},
+        "augmentation_counts": {"imported_candidates": imported_rows, "generated_candidates": generated_rows,
+                                "accepted_training_rows": augmented_rows,
+                                "excluded_candidates": imported_rows + generated_rows - augmented_rows},
+        "split_label_distributions": {name: frame[args.label_column].value_counts().to_dict()
+            for name, frame in (("train", train_df), ("validation", val_df), ("test", test_df))},
+        "selected_estimator_parameters": {name: json_value(estimator.get_params(deep=False))
+                                          for name, estimator in model._pipeline.named_steps.items()},
         "artifact_version": model.artifact_version,
         "inference_input": "raw_text",
-        "data_audit": args.data_audit,
+        "data_audit": audit,
         "preprocessing": model.preprocessing_config,
         "preprocessing_by_split": args.preprocessing_by_split,
         "overlap_checks": args.overlap_checks,
-        "augmentation_path": str(augmentation_path),
-        "dataset_paths": [str(path) for path in dataset_paths],
+        "augmentation_path": augmentation_path.name,
+        "dataset_paths": [path_reference(path) for path in dataset_paths],
         "split_sizes": {
             "train": len(train_df),
             "validation": len(val_df),
             "test": len(test_df),
         },
-        "labels": sorted(train_df[args.label_column].unique().tolist()),
-        "model_path": str(model_path),
+        "labels": model.classes_.tolist(),
+        "model_path": model_path.name,
         "selected_algorithm": best_entry["algorithm"],
         "split_paths": {
-            "train": str(train_split_path),
-            "validation": str(validation_split_path),
-            "test": str(test_split_path),
+            "train": train_split_path.name,
+            "validation": validation_split_path.name,
+            "test": test_split_path.name,
         },
         "model_selection": {
             "selection_metric": args.selection_metric,
@@ -419,11 +462,12 @@ def save_artifacts(
 
 def main() -> None:
     args = parse_args()
-    if args.run_name is not None:
-        if Path(args.run_name).name != args.run_name or args.run_name in {".", ".."}:
-            raise ValueError("--run-name must be a single directory name.")
-        if (args.output_dir / args.run_name).exists():
-            raise FileExistsError("Run directory already exists; choose a new --run-name.")
+    validate_training_args(args)
+    config = experiment_config(args, resolve_candidate_algorithms(args))
+    args.experiment_config = config
+    args.environment = environment_snapshot()
+    args.code_snapshot = code_snapshot()
+    seed_everything(args.random_state)
 
     # Tạo danh sách paths để lưu METADATA
     dataset_paths = [args.train_data]
@@ -481,4 +525,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ValueError, OSError) as error:
+        raise SystemExit(f"Training error: {error}") from error

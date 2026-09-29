@@ -20,11 +20,16 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.inference import load_model
+from src.experiments import environment_snapshot, file_fingerprint, path_reference
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Evaluate a trained Vietnamese sentiment model."
+    )
+    parser.add_argument(
+        "--output-dir", type=Path, default=None,
+        help="Write evaluation outputs here (default: run directory). Existing outputs are never overwritten.",
     )
     parser.add_argument(
         "--run-dir",
@@ -78,8 +83,13 @@ def resolve_paths(args: argparse.Namespace) -> tuple[Path, Path, Path, Path]:
     if not split_path.exists():
         raise FileNotFoundError(f"Split file does not exist: {split_path}")
 
-    metrics_path = run_dir / f"{args.split}_metrics.json"
-    predictions_path = run_dir / f"{args.split}_predictions.csv"
+    output_dir = args.output_dir or run_dir
+    if output_dir.exists() and not output_dir.is_dir():
+        raise ValueError("--output-dir must be a directory.")
+    metrics_path = output_dir / f"{args.split}_metrics.json"
+    predictions_path = output_dir / f"{args.split}_predictions.csv"
+    if metrics_path.exists() or predictions_path.exists():
+        raise FileExistsError("Evaluation output already exists; use a fresh --output-dir. Overwriting is not supported.")
     return model_path, split_path, metrics_path, predictions_path
 
 
@@ -89,14 +99,16 @@ def evaluate_predictions(
     labels: list[str],
 ) -> dict[str, object]:
     return {
+        "labels": labels,
+        "confusion_matrix_axes": {"rows": "true labels", "columns": "predicted labels"},
         "accuracy": accuracy_score(y_true, y_pred),
         "precision_macro": precision_score(
-            y_true, y_pred, average="macro", zero_division=0
+            y_true, y_pred, labels=labels, average="macro", zero_division=0
         ),
-        "recall_macro": recall_score(y_true, y_pred, average="macro", zero_division=0),
-        "f1_macro": f1_score(y_true, y_pred, average="macro", zero_division=0),
+        "recall_macro": recall_score(y_true, y_pred, labels=labels, average="macro", zero_division=0),
+        "f1_macro": f1_score(y_true, y_pred, labels=labels, average="macro", zero_division=0),
         "classification_report": classification_report(
-            y_true, y_pred, output_dict=True, zero_division=0
+            y_true, y_pred, labels=labels, output_dict=True, zero_division=0
         ),
         "confusion_matrix": confusion_matrix(y_true, y_pred, labels=labels).tolist(),
     }
@@ -122,6 +134,8 @@ def main() -> None:
 
     if split_df.empty:
         raise ValueError("Cannot evaluate an empty split.")
+    if split_df[args.label_column].str.strip().eq("").any():
+        raise ValueError("Evaluation labels cannot be empty.")
     results = model.infer(split_df[args.text_column])
     empty_count = sum(row["empty_after_preprocessing"] for row in results)
     preprocessing_report = {"input_rows": len(results), "empty_rows": empty_count,
@@ -130,25 +144,32 @@ def main() -> None:
     y_true = split_df[args.label_column].astype(str)
     y_pred = pd.Series([row["label"] for row in results], index=split_df.index).astype(str)
 
-    labels = sorted(set(y_true.tolist()) | set(y_pred.tolist()))
+    labels = model.classes_.tolist()
+    unknown = (set(y_true) | set(y_pred)) - set(labels)
+    if unknown:
+        raise ValueError(f"Evaluation contains labels absent from the model: {sorted(unknown)}")
     metrics = evaluate_predictions(y_true=y_true, y_pred=y_pred, labels=labels)
 
     predictions_df = split_df.copy()
     predictions_df["predicted_label"] = y_pred
     predictions_df["empty_after_preprocessing"] = [row["empty_after_preprocessing"] for row in results]
-    predictions_df.to_csv(predictions_path, index=False, encoding="utf-8-sig")
+    predictions_path.parent.mkdir(parents=True, exist_ok=True)
+    predictions_df.to_csv(predictions_path, index=False, encoding="utf-8-sig", mode="x")
 
     output_payload = {
-        "run_dir": str(args.run_dir),
+        "metadata_schema_version": 2,
+        "run_dir": path_reference(args.run_dir, metrics_path.parent),
+        "environment": environment_snapshot(),
+        "input_fingerprints": {"model": file_fingerprint(model_path), "split": file_fingerprint(split_path)},
         "artifact_version": model.artifact_version,
         "split": args.split,
-        "model_path": str(model_path),
-        "split_path": str(split_path),
-        "predictions_path": str(predictions_path),
+        "model_path": path_reference(model_path, metrics_path.parent),
+        "split_path": path_reference(split_path, metrics_path.parent),
+        "predictions_path": predictions_path.name,
         "metrics": metrics,
         "preprocessing": preprocessing_report,
     }
-    with metrics_path.open("w", encoding="utf-8") as file:
+    with metrics_path.open("x", encoding="utf-8") as file:
         json.dump(output_payload, file, ensure_ascii=False, indent=2)
 
     summary = {
@@ -163,4 +184,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ValueError, OSError) as error:
+        raise SystemExit(f"Evaluation error: {error}") from error

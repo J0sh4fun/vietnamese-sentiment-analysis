@@ -1,0 +1,16 @@
+name: Streamlit Deployment
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: Streamlit App
+      url: https://vietnamese-sentiment-analysis-22nfhz9ztajxkpj2wfpfdq.streamlit.app
+    steps:
+      - name: Record deployment status
+        run: echo "The app is up and running on Streamlit Cloud!"

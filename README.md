@@ -312,6 +312,32 @@ vietnamese-sentiment-analysis/
 
 The older [Kaggle notebook](https://www.kaggle.com/code/josh4fun/vietnamese-text-processing) is a historical project reference. Its contents were not accessible during this check; it is not verified as implementing the current split, preprocessing, inference or evaluation protocol. The CLI and recorded run above are the basis for the results in this README.
 
+## PyTorch MLP experiment (6 November 2026)
+
+The separate [MLP study and completed checklist](docs/mlp_20261106.md) compares
+ComplementNB and three one-hidden-layer PyTorch MLPs using the existing
+train/validation `clean_text` splits and one shared, train-fitted float32 TF-IDF.
+This study does not open or evaluate the test split. Its results are validation
+results and must not be compared directly with the test scores above.
+
+```powershell
+# CPU-only PyTorch; matplotlib is also required (see requirements.txt).
+.venv/Scripts/python.exe -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+.venv/Scripts/python.exe -m pip install matplotlib
+
+# Choose a fresh run name; the saved source split bundle must be present.
+.venv/Scripts/python.exe -u -m src.run_mlp --run-name mlp_reproduction_01
+
+# Inference accepts already-preprocessed clean_text, not raw reviews.
+.venv/Scripts/python.exe -m src.mlp --run-dir models/mlp/mlp_20261106_01 --clean-text "sản_phẩm không tốt" "giao_hàng nhanh chất_lượng tốt"
+```
+
+The MLP artifact uses its own explicit `clean_text` API in `src.mlp`; it is not
+compatible with the raw-text `SentimentModel` loader or the current Streamlit
+app. Preserve the whole `models/mlp/<run-name>/` bundle (including TF-IDF,
+selection and checkpoints). Like other model outputs, this directory is ignored
+by Git. The tracked report and chart retain the experiment summary.
+
 ## Author
 
 josh4fun

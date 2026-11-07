@@ -78,6 +78,9 @@ class MLPTests(unittest.TestCase):
             model, checkpoint = load_checkpoint(Path(temp) / "tiny_best.pt")
             self.assertEqual(summary["best_epoch"], 1)
             self.assertEqual(checkpoint["epoch"], 1)
+            self.assertIn("optimizer_state_dict", checkpoint)
+            self.assertEqual(checkpoint["artifact_version"], 2)
+            self.assertEqual(next(iter(checkpoint["optimizer_state_dict"]["state"].values()))["step"].item(), 1)
             self.assertTrue(any(not torch.equal(states[0][key], states[1][key]) for key in states[0]))
             self.assertTrue(all(torch.equal(model.state_dict()[key], states[0][key]) for key in states[0]))
 

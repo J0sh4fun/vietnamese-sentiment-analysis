@@ -1,0 +1,12 @@
+# Keep versioned config/lock fingerprints stable across Windows checkouts.
+requirements.txt -text whitespace=cr-at-eol
+requirements-transformer.txt -text whitespace=cr-at-eol
+requirements/** -text whitespace=cr-at-eol
+configs/** -text whitespace=cr-at-eol
+.python-version text eol=lf
+# Preserve exact payload bytes for data and serialized/model artifacts.
+*.jsonl -text
+*.csv -text whitespace=cr-at-eol
+*.joblib binary
+*.pt binary
+*.png binary

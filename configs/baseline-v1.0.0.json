@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "release_id": "baseline-v1.0.0",
+  "seed": 42,
+  "threads": 4,
+  "data": {
+    "dataset_ref": "dduongdev/shopee-vietnamese-product-reviews-sentiment",
+    "version": 1,
+    "url": "https://www.kaggle.com/api/v1/datasets/download/dduongdev/shopee-vietnamese-product-reviews-sentiment?datasetVersionNumber=1",
+    "license_declared": "Apache 2.0",
+    "text_column": "review",
+    "label_column": "label",
+    "labels": {
+      "negative": 0,
+      "positive": 1
+    },
+    "files": {
+      "shopee_reviews_dataset.jsonl": {
+        "sha256": "9e9c1c19b68c9d758ad5b006ae65777f97fce0f6b8ed8bbd75fe368321c11270",
+        "rows": 9599
+      },
+      "aug_unaccented_reviews.jsonl": {
+        "sha256": "2125c656d29e05fb1b5c0f40ee042d2b94a1a5bd0fdda3916c8e880606db215d",
+        "rows": 1348
+      }
+    }
+  },
+  "split": {
+    "validation_size": 0.1,
+    "test_size": 0.1,
+    "augmentation": false
+  },
+  "preprocessing": {
+    "cohort_reference": {
+      "word_segmentation": true,
+      "remove_stopwords": true,
+      "tone_repositioning": false
+    },
+    "model": {
+      "word_segmentation": true,
+      "remove_stopwords": false,
+      "tone_repositioning": false
+    }
+  },
+  "tfidf": {
+    "ngram_range": [
+      1,
+      2
+    ],
+    "min_df": 2,
+    "max_features": 150000,
+    "sublinear_tf": true,
+    "lowercase": false,
+    "token_pattern": "(?u)\\b\\w+\\b",
+    "norm": "l2",
+    "smooth_idf": true,
+    "dtype": "float32"
+  },
+  "nb": {
+    "alpha": 0.5
+  },
+  "mlp": {
+    "hidden_size": 64,
+    "dropout": 0.3,
+    "learning_rate": 0.001,
+    "optimizer": "Adam",
+    "weight_decay": 0,
+    "epochs": 15,
+    "batch_size": 128,
+    "selection_metric": "validation_macro_f1",
+    "tie_break": "earliest_epoch"
+  },
+  "environment": {
+    "python": "3.13.5",
+    "platform": "Windows",
+    "bits": 64,
+    "lock": "requirements/locks/windows-py313-cpu.txt"
+  },
+  "expected": {
+    "train_rows": 7660,
+    "validation_rows": 958,
+    "test_rows": 958,
+    "split_sha256": {
+      "train_split.csv": "5a4e1a492f32d532090e462bb36db3373c22b8c078b324fb8aa8cdd0b400fcc6",
+      "validation_split.csv": "ff1f197113875c8a57483648d21d1e66b00a8195f78de3b27b92762ce06526c9",
+      "test_split.csv": "ce1378a3aac65972ad97fded13746fdff51ec0e80554aa1d3f2b931dbb96afdc"
+    },
+    "validation_macro_f1": {
+      "ComplementNB": 0.9230935080186429,
+      "MLP": 0.9390446354304647
+    },
+    "mlp_best_epoch": 9
+  }
+}

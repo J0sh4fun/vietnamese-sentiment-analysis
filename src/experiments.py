@@ -15,6 +15,7 @@ import numpy as np
 from threadpoolctl import threadpool_info
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_SEED = 42
 
 
 def path_reference(path, base=PROJECT_ROOT):
@@ -69,9 +70,14 @@ def code_snapshot(root=PROJECT_ROOT):
     return result
 
 
-def seed_everything(seed):
+def seed_everything(seed=DEFAULT_SEED, *, torch_enabled=False):
+    """Shared Python/NumPy seed; opt in to deterministic PyTorch for neural models."""
     random.seed(seed)
     np.random.seed(seed)
+    if torch_enabled:
+        import torch
+        torch.manual_seed(seed)
+        torch.use_deterministic_algorithms(True)
 
 
 def validate_split_parameters(args):

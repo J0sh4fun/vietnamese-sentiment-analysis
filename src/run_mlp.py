@@ -25,7 +25,7 @@ from sklearn.naive_bayes import ComplementNB
 
 from src.experiments import PROJECT_ROOT, code_snapshot, environment_snapshot, file_fingerprint
 from src.mlp import (LABELS, LABEL_TO_ID, SentimentMLP, TfidfDataset, evaluate,
-                     load_checkpoint, make_loader, seed_everything, train_epoch)
+                     load_checkpoint, make_loader, seed_everything, train_epoch, training_checkpoint)
 
 CONFIGURATIONS = (
     {"name": "reference", "learning_rate": 0.001, "dropout": 0.0},
@@ -105,7 +105,7 @@ def overfit_32(train_dataset, seed):
             "history": history}
 
 
-def fit_mlp(config, train_dataset, validation_dataset, run_dir, seed, epochs, batch_size):
+def fit_mlp(config, train_dataset, validation_dataset, run_dir, seed, epochs, batch_size, training_context=None):
     seed_everything(seed)
     model = SentimentMLP(train_dataset.features.shape[1], dropout=config["dropout"])
     optimizer = torch.optim.Adam(model.parameters(), lr=config["learning_rate"], weight_decay=0)
@@ -113,6 +113,11 @@ def fit_mlp(config, train_dataset, validation_dataset, run_dir, seed, epochs, ba
     train_eval_loader = make_loader(train_dataset, batch_size)
     val_loader = make_loader(validation_dataset, batch_size)
     best_f1, best_epoch, best_state = -1.0, None, None
+    best_checkpoint = None
+    training_config = {"optimizer": "Adam", "learning_rate": config["learning_rate"],
+                       "weight_decay": 0, "seed": seed, "batch_size": batch_size,
+                       "threads": torch.get_num_threads(), "epochs": epochs,
+                       "loss": "CrossEntropyLoss", **(training_context or {})}
     history = []
     started = time.perf_counter()
     for epoch in range(1, epochs + 1):
@@ -126,18 +131,17 @@ def fit_mlp(config, train_dataset, validation_dataset, run_dir, seed, epochs, ba
         if validation["macro_f1"] > best_f1:
             best_f1, best_epoch = validation["macro_f1"], epoch
             best_state = copy.deepcopy(model.state_dict())
+            best_checkpoint = training_checkpoint(model, optimizer, train_loader, epoch=epoch,
+                validation_macro_f1=best_f1, config=training_config)
         print(f"{config['name']} epoch={epoch:02d} train_loss={train['loss']:.4f} "
               f"val_loss={validation['loss']:.4f} val_f1={validation['macro_f1']:.6f}", flush=True)
     fit_seconds = time.perf_counter() - started
+    torch.save(training_checkpoint(model, optimizer, train_loader, epoch=epochs,
+        validation_macro_f1=validation["macro_f1"], config=training_config), run_dir / f"{config['name']}_last.pt")
     model.load_state_dict(best_state)
     restored = evaluate(model, val_loader)
     checkpoint_name = f"{config['name']}_best.pt"
-    checkpoint = {"artifact_version": 1, "input_contract": "clean_text", "labels": list(LABELS),
-                  "vocabulary_size": train_dataset.features.shape[1], "hidden_size": 64,
-                  "dropout": config["dropout"], "learning_rate": config["learning_rate"],
-                  "seed": seed, "epoch": best_epoch, "validation_macro_f1": best_f1,
-                  "state_dict": best_state}
-    torch.save(checkpoint, run_dir / checkpoint_name)
+    torch.save(best_checkpoint, run_dir / checkpoint_name)
     reloaded, _ = load_checkpoint(run_dir / checkpoint_name)
     verified = evaluate(reloaded, val_loader)
     if verified != restored:
@@ -236,7 +240,10 @@ def run(args):
     predictions, histories = {}, {}
     for config in CONFIGURATIONS:
         summary, pred, history = fit_mlp(config, train_dataset, val_dataset, run_dir,
-                                         args.seed, 15, args.batch_size)
+                                         args.seed, 15, args.batch_size,
+                                         {"tfidf_sha256": file_fingerprint(run_dir / "tfidf.joblib")["sha256"],
+                                          "split_hashes": {f"{name}_split.csv": file_fingerprint(args.split_dir / f"{name}_split.csv")
+                                                           for name in ("train", "validation")}})
         summaries.append(summary)
         predictions[config["name"]] = pred
         histories[config["name"]] = history

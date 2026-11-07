@@ -1,0 +1,393 @@
+{
+  "verified_on": "2026-11-07",
+  "source": {
+    "dataset_ref": "dduongdev/shopee-vietnamese-product-reviews-sentiment",
+    "owner": "Duong Nguyen",
+    "version": 1,
+    "last_updated": "2026-03-24T04:11:11.963Z",
+    "license_declared": "Apache 2.0",
+    "metadata_url": "https://www.kaggle.com/api/v1/datasets/view/dduongdev/shopee-vietnamese-product-reviews-sentiment",
+    "download_url": "https://www.kaggle.com/api/v1/datasets/download/dduongdev/shopee-vietnamese-product-reviews-sentiment?datasetVersionNumber=1",
+    "labeling_statement_verbatim": "Labels are assigned based on the actual semantic content of the review rather than the star rating.",
+    "collection_period_publisher_claim": [
+      "2023-01-01",
+      "2026-03-10"
+    ],
+    "manual_vs_automated_labeling": "not specified in publisher description",
+    "neutral_mixed_policy": "not specified in publisher description",
+    "archive_sha256": "bf69db40a44798525b810c4d6e751508fadbc4e3886f1a75aa403bca65791fca",
+    "archive_files": [
+      {
+        "upstream_member": "aug_unaccented_reviews.jsonl",
+        "bytes": 517872,
+        "sha256": "2125c656d29e05fb1b5c0f40ee042d2b94a1a5bd0fdda3916c8e880606db215d",
+        "local_file": "data/aug_unaccented_reviews.jsonl",
+        "matches_local_exactly": true
+      },
+      {
+        "upstream_member": "shopee_reviews_dataset.jsonl",
+        "bytes": 2344558,
+        "sha256": "9e9c1c19b68c9d758ad5b006ae65777f97fce0f6b8ed8bbd75fe368321c11270",
+        "local_file": "data/shopee_reviews_dataset.jsonl",
+        "matches_local_exactly": true
+      }
+    ],
+    "archive_license_notice_files": []
+  },
+  "local_original": {
+    "path": "data/shopee_reviews_dataset.jsonl",
+    "rows": 9599,
+    "sha256": "9e9c1c19b68c9d758ad5b006ae65777f97fce0f6b8ed8bbd75fe368321c11270",
+    "label_counts": {
+      "negative": 5965,
+      "positive": 3634
+    },
+    "rating_label_counts": [
+      {
+        "rating": 1,
+        "negative": 2958,
+        "positive": 14
+      },
+      {
+        "rating": 2,
+        "negative": 1221,
+        "positive": 9
+      },
+      {
+        "rating": 3,
+        "negative": 1691,
+        "positive": 91
+      },
+      {
+        "rating": 4,
+        "negative": 29,
+        "positive": 67
+      },
+      {
+        "rating": 5,
+        "negative": 66,
+        "positive": 3453
+      }
+    ],
+    "disagreements_with_rating_1to3_negative_4to5_positive": 209
+  },
+  "train_sample": {
+    "train_file": "models/evaluation_workflow/full_validation_20260929_01/train_split.csv",
+    "train_file_sha256": "5a4e1a492f32d532090e462bb36db3373c22b8c078b324fb8aa8cdd0b400fcc6",
+    "train_rows": 7660,
+    "train_label_counts": {
+      "negative": 4754,
+      "positive": 2906
+    },
+    "sampling": "20 rows: random.Random(20261107), 4 per rating in 1..5 order; then 5 targeted rows: random.Random(20261108), one per rating in 1..5 order with labels positive/positive/positive/negative/negative, excluding prior source_ids; candidates retain CSV order.",
+    "sampling_python": "3.13.5",
+    "reviewer": "assistant qualitative reading; not blind to rating or dataset label",
+    "assessment_counts": {
+      "plausible": 22,
+      "needs_adjudication": 3
+    },
+    "caveat": "No independent human adjudication; not an estimate of population label error; no data/label/model changed.",
+    "rows": [
+      {
+        "number": 1,
+        "train_row_index_0based": 7453,
+        "source_id": "sha256:a686f158c6cb5ca4ccb4258b97aaa309aaacdcb05aee3b725a0f01c3fc274461",
+        "id": "36154961079",
+        "rating": 1,
+        "dataset_label": "negative",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "Không hề có giao hàng tặng kèm",
+        "assessment": "plausible",
+        "reviewer_note": "Phàn nàn thiếu quà và hộp rách; negative phù hợp nội dung."
+      },
+      {
+        "number": 2,
+        "train_row_index_0based": 5059,
+        "source_id": "sha256:ce974aac7ed0a2fec969cf21cbe6c27ff3cb81bfe427c5e72b80b3546bb6f113",
+        "id": "15068254401",
+        "rating": 1,
+        "dataset_label": "negative",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "mình không hài lòng",
+        "assessment": "plausible",
+        "reviewer_note": "Có nhận đủ số lượng nhưng sữa vỡ, bất mãn shipper; tổng thể tiêu cực."
+      },
+      {
+        "number": 3,
+        "train_row_index_0based": 5837,
+        "source_id": "sha256:26cebabe48991b9d226fee3c7555c0fcc1d78ec7724c5a34c6008d8af115bc7e",
+        "id": "11156744587",
+        "rating": 1,
+        "dataset_label": "negative",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "không có quà tặng như ảnh",
+        "assessment": "plausible",
+        "reviewer_note": "Khiếu nại thiếu quà; negative phù hợp."
+      },
+      {
+        "number": 4,
+        "train_row_index_0based": 435,
+        "source_id": "sha256:a497d7d38949bef859b39565271f068f4e26d70ad3148f178d6dbdc4621ce372",
+        "id": "81848096262",
+        "rating": 1,
+        "dataset_label": "negative",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "rất thất vọng",
+        "assessment": "plausible",
+        "reviewer_note": "Đóng gói/hộp hư, phản hồi tiêu cực rõ."
+      },
+      {
+        "number": 5,
+        "train_row_index_0based": 1162,
+        "source_id": "sha256:381aeb1c94b5d6ad0e0cdfa4bc7eb8c766a4d147038d37f3c132b6e327b41255",
+        "id": "74981029652",
+        "rating": 2,
+        "dataset_label": "negative",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "chưa nhận được hóa đóng",
+        "assessment": "plausible",
+        "reviewer_note": "Chưa đáp ứng yêu cầu hóa đơn; negative có thể hiểu được, không phải lời khen."
+      },
+      {
+        "number": 6,
+        "train_row_index_0based": 5882,
+        "source_id": "sha256:64c9ec49a3862127cc761e69a580635104a5bf3d3f397110103355eba226e45b",
+        "id": "84172238176",
+        "rating": 2,
+        "dataset_label": "negative",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "dịch vụ CSKH kém",
+        "assessment": "plausible",
+        "reviewer_note": "Hàng vỡ/bẩn và CSKH kém; negative rõ."
+      },
+      {
+        "number": 7,
+        "train_row_index_0based": 4840,
+        "source_id": "sha256:252100376b97391fdb0b7072d29b205f5e34b06da602ff1a19fff83cb45432bd",
+        "id": "70572681247",
+        "rating": 2,
+        "dataset_label": "negative",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "Hi vọng dùng tốt lần sau sẽ mua lại",
+        "assessment": "needs_adjudication",
+        "reviewer_note": "Chưa đánh giá công dụng, khen giao hàng; trung tính/hơi tích cực hơn là negative rõ. Cần người phân xử, không tự sửa nhãn."
+      },
+      {
+        "number": 8,
+        "train_row_index_0based": 2341,
+        "source_id": "sha256:2246b4e5ac4618eab6a2f302dbe5838931182cd00417507849edfc446189df26",
+        "id": "89117411291",
+        "rating": 2,
+        "dataset_label": "negative",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "ko ok cho lắm vì bị rò nước",
+        "assessment": "plausible",
+        "reviewer_note": "Thiết kế đẹp nhưng rò nước/giữ nhiệt hạn chế; mixed với negative hợp lý."
+      },
+      {
+        "number": 9,
+        "train_row_index_0based": 2814,
+        "source_id": "sha256:0472eb8cece22863d66759b886dc8f0cc148084e5263c1122fa403b97d4cfa30",
+        "id": "12867606158",
+        "rating": 3,
+        "dataset_label": "negative",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "sữa thì vị nhạt nên bé không uống",
+        "assessment": "plausible",
+        "reviewer_note": "Hàng vỡ và không hợp vị; gợi ý làm bánh không phủ định bất mãn chính."
+      },
+      {
+        "number": 10,
+        "train_row_index_0based": 2475,
+        "source_id": "sha256:27d884a36ed8391785df24e3e8cb448c292ba0883f77d3bf1d5e8f855abae7aa",
+        "id": "59882582368",
+        "rating": 3,
+        "dataset_label": "negative",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "Có tặng cái gì đâu",
+        "assessment": "plausible",
+        "reviewer_note": "Khiếu nại khuyến mại; negative rõ dù rating 3 không tự quyết định cảm xúc."
+      },
+      {
+        "number": 11,
+        "train_row_index_0based": 7477,
+        "source_id": "sha256:7afc36879d8bec3aa0382a5dad4d6c244c9ff995b4be242f7a494ecce9bac8c0",
+        "id": "36901607959",
+        "rating": 3,
+        "dataset_label": "negative",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "Trừ 2 sao vì tội marketing như v",
+        "assessment": "plausible",
+        "reviewer_note": "Sản phẩm tốt nhưng trách marketing/quà tặng; mixed, negative có căn cứ."
+      },
+      {
+        "number": 12,
+        "train_row_index_0based": 935,
+        "source_id": "sha256:f04e18fcd826f1b210e2a357cb5091fa1a4e0672730fe095c6f572b60004b995",
+        "id": "52221010849",
+        "rating": 3,
+        "dataset_label": "negative",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "có mùi khét khét ngửi rất khó chịu",
+        "assessment": "plausible",
+        "reviewer_note": "Giá hợp lý nhưng có vấn đề mùi khét; negative có căn cứ."
+      },
+      {
+        "number": 13,
+        "train_row_index_0based": 6505,
+        "source_id": "sha256:2da91a76ba80370e873f8ea6a6ca41b69b227a802cb63e0e33ae912f8f73956b",
+        "id": "35851470890",
+        "rating": 4,
+        "dataset_label": "negative",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "khâu đóng gói còn tệ hơn",
+        "assessment": "plausible",
+        "reviewer_note": "Khen lượng/mùi nhưng phàn nàn đóng gói kéo dài; negative có căn cứ dù 4 sao."
+      },
+      {
+        "number": 14,
+        "train_row_index_0based": 2599,
+        "source_id": "sha256:7cb22783eea94c9d788435250dde8e3ed0b6649622d6f21b0a8caae4060fd324",
+        "id": "13943305003",
+        "rating": 4,
+        "dataset_label": "positive",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "liên hệ người bán rất khó",
+        "assessment": "needs_adjudication",
+        "reviewer_note": "Có khen đóng gói nhưng khó liên hệ và thiếu quà; nhãn positive cần quy tắc ưu tiên khía cạnh hoặc phân xử."
+      },
+      {
+        "number": 15,
+        "train_row_index_0based": 740,
+        "source_id": "sha256:70562c1e103cf4cc1aab7279efb3c4bffcb97700f62f13a7668bb288483e6569",
+        "id": "13221883590",
+        "rating": 4,
+        "dataset_label": "positive",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "tiếc là không mua sớm hơn",
+        "assessment": "plausible",
+        "reviewer_note": "Khen giá, mùi, chai và chất lượng; positive rõ."
+      },
+      {
+        "number": 16,
+        "train_row_index_0based": 1491,
+        "source_id": "sha256:2ce69e503e1867eda5c01a9f6745b42d8ec5095054bfbe5feb78be6abd720457",
+        "id": "32442517314",
+        "rating": 4,
+        "dataset_label": "positive",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "Sài quen rồi nên mua lại sài tiếp",
+        "assessment": "plausible",
+        "reviewer_note": "Mua lại và khen mùi, dù hiệu quả làm trắng chưa xác nhận; positive hợp lý, không phải bằng chứng công dụng."
+      },
+      {
+        "number": 17,
+        "train_row_index_0based": 2351,
+        "source_id": "sha256:9909c1a2a68beeb2c520c76fe68bb2249ae6e2bbe2c8080a9c6d12818a42febe",
+        "id": "88174748106",
+        "rating": 5,
+        "dataset_label": "positive",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "Nói chung là hàng tốt nhé",
+        "assessment": "plausible",
+        "reviewer_note": "Khen shipper, đóng gói và sản phẩm; positive rõ."
+      },
+      {
+        "number": 18,
+        "train_row_index_0based": 4486,
+        "source_id": "sha256:ddacd1b17a8d29e6e9faeaa59461260eed00be7f7d41fe517697146a4caff772",
+        "id": "78865001701",
+        "rating": 5,
+        "dataset_label": "positive",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "k ảnh hưởng đến sản phẩm",
+        "assessment": "plausible",
+        "reviewer_note": "Hộp méo nhưng phủ nhận ảnh hưởng và nói rất ưng; mixed với positive có căn cứ."
+      },
+      {
+        "number": 19,
+        "train_row_index_0based": 795,
+        "source_id": "sha256:1bae9338af3f5b190712df520e1ccd402f8575bf3c37161cf2a45e678451e23e",
+        "id": "81820664532",
+        "rating": 5,
+        "dataset_label": "positive",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "rất thích sản phẩm này",
+        "assessment": "plausible",
+        "reviewer_note": "Khen trải nghiệm nhiều lần, giá và chất lượng; positive rõ."
+      },
+      {
+        "number": 20,
+        "train_row_index_0based": 3090,
+        "source_id": "sha256:093d6d7376b8136da0606b39761e20ddd22655e6636cb227c20439e0880f8258",
+        "id": "90476714508",
+        "rating": 5,
+        "dataset_label": "positive",
+        "sampling_group": "rating_stratified_random",
+        "excerpt": "dùng cho da dầu rất hợp",
+        "assessment": "plausible",
+        "reviewer_note": "Khen làm sạch/tạo bọt/hợp da; positive phù hợp."
+      },
+      {
+        "number": 21,
+        "train_row_index_0based": 4615,
+        "source_id": "sha256:671f07ce191e463e4dd7ec71516600223275bb2494ea3deedd0c93ffa536ebd9",
+        "id": "75314583652",
+        "rating": 1,
+        "dataset_label": "positive",
+        "sampling_group": "targeted_rating_threshold_disagreement",
+        "excerpt": "shop giao hàng rất nhanh",
+        "assessment": "plausible",
+        "reviewer_note": "Khen giá, giao hàng, kích cỡ; positive có căn cứ dù chỉ 1 sao."
+      },
+      {
+        "number": 22,
+        "train_row_index_0based": 4465,
+        "source_id": "sha256:abcbc8ecf29d0fcce43c6379e8fa5b4242ac110b709b58e57529128b03349c4d",
+        "id": "12563978978",
+        "rating": 2,
+        "dataset_label": "positive",
+        "sampling_group": "targeted_rating_threshold_disagreement",
+        "excerpt": "huong vi ok shop giao hang nhanh",
+        "assessment": "plausible",
+        "reviewer_note": "Khen đủ số lượng, hương vị và giao hàng; positive có căn cứ dù 2 sao."
+      },
+      {
+        "number": 23,
+        "train_row_index_0based": 2809,
+        "source_id": "sha256:2160baa448dd7729b8b47ad9d3fcac0f31441b25b14359a2cd5ab5bc0b63ae01",
+        "id": "11515654144",
+        "rating": 3,
+        "dataset_label": "positive",
+        "sampling_group": "targeted_rating_threshold_disagreement",
+        "excerpt": "giá cả khá phù hợp",
+        "assessment": "plausible",
+        "reviewer_note": "Khen giao hàng/giá, mong thêm voucher; positive có căn cứ dù 3 sao."
+      },
+      {
+        "number": 24,
+        "train_row_index_0based": 3244,
+        "source_id": "sha256:3d2e9b4700cbbc5c09907a92505bf75d8d82d0c6542629e4e764d16516702ddc",
+        "id": "88721010540",
+        "rating": 4,
+        "dataset_label": "negative",
+        "sampling_group": "targeted_rating_threshold_disagreement",
+        "excerpt": "Sữa bị hỏng 3 bịch",
+        "assessment": "plausible",
+        "reviewer_note": "Sữa rách/đổ/hôi; negative rõ dù 4 sao."
+      },
+      {
+        "number": 25,
+        "train_row_index_0based": 4026,
+        "source_id": "sha256:ec80ff099f83ce2362872b3f86d964d51aa5b33c334d8087c7ce920b80f2cc3d",
+        "id": "91494318903",
+        "rating": 5,
+        "dataset_label": "negative",
+        "sampling_group": "targeted_rating_threshold_disagreement",
+        "excerpt": "giao hàng khá lâu",
+        "assessment": "needs_adjudication",
+        "reviewer_note": "Chất liệu/màu được khen, giao lâu bị chê; mixed, negative phụ thuộc ưu tiên khía cạnh chưa được nguồn công bố."
+      }
+    ]
+  }
+}

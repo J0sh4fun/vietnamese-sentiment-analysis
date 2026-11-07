@@ -1,7 +1,3 @@
-pandas>=2.0.0
-scikit-learn>=1.2.2
-underthesea>=6.6.0
-joblib>=1.2.0
-streamlit>=1.24.0
-torch>=2.2.0
-matplotlib>=3.7.0
+# Verified baseline release: Windows x64, CPython 3.13.5, PyTorch CPU.
+# This lock is platform-specific. See README before installing on another platform.
+-r requirements/locks/windows-py313-cpu.txt

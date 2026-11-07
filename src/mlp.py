@@ -6,6 +6,7 @@ become dense. CrossEntropyLoss receives logits and integer class IDs.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import random
 from pathlib import Path
@@ -16,16 +17,14 @@ import torch
 from sklearn.metrics import accuracy_score, f1_score
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
+from src.experiments import seed_everything as _shared_seed
 
 LABELS = ("negative", "positive")
 LABEL_TO_ID = {name: index for index, name in enumerate(LABELS)}
 
 
 def seed_everything(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.use_deterministic_algorithms(True)
+    _shared_seed(seed, torch_enabled=True)
 
 
 class TfidfDataset(Dataset):
@@ -101,14 +100,68 @@ def evaluate(model, loader):
 
 def load_checkpoint(path):
     checkpoint = torch.load(path, map_location="cpu", weights_only=True)
-    if checkpoint.get("artifact_version") != 1 or checkpoint.get("input_contract") != "clean_text":
-        raise ValueError("Expected a version-1 clean_text MLP checkpoint.")
+    if checkpoint.get("artifact_version") not in (1, 2) or checkpoint.get("input_contract") != "clean_text":
+        raise ValueError("Expected a version-1 or version-2 clean_text MLP checkpoint.")
     if checkpoint.get("labels") != list(LABELS):
         raise ValueError("Unsupported label mapping.")
-    model = SentimentMLP(checkpoint["vocabulary_size"], 64, checkpoint["dropout"])
-    model.load_state_dict(checkpoint["state_dict"])
+    if checkpoint["artifact_version"] == 1:
+        model = SentimentMLP(checkpoint["vocabulary_size"], 64, checkpoint["dropout"])
+        state = checkpoint["state_dict"]
+    else:
+        arch = checkpoint["architecture"]
+        if (arch["type"] != "SentimentMLP" or arch["activation"] != "relu"
+                or arch["output_size"] != 2 or checkpoint["label_mapping"] != LABEL_TO_ID):
+            raise ValueError("Unsupported architecture or label mapping.")
+        model = SentimentMLP(arch["input_size"], arch["hidden_size"], arch["dropout"])
+        state = checkpoint["model_state_dict"]
+    model.load_state_dict(state)
     model.eval()
     return model, checkpoint
+
+
+def training_checkpoint(model, optimizer, loader, *, epoch, validation_macro_f1, config):
+    """Snapshot weights AND Adam/RNG state from the same epoch; safe for weights_only loading."""
+    numpy_state = np.random.get_state()
+    return {"artifact_version": 2, "input_contract": "clean_text", "labels": list(LABELS),
+            "label_mapping": dict(LABEL_TO_ID),
+            "architecture": {"type": "SentimentMLP", "input_size": model.hidden.in_features,
+                             "hidden_size": model.hidden.out_features, "output_size": 2,
+                             "activation": "relu", "dropout": model.dropout.p},
+            "epoch": epoch, "validation_macro_f1": float(validation_macro_f1),
+            "model_state_dict": copy.deepcopy(model.state_dict()),
+            "optimizer_state_dict": copy.deepcopy(optimizer.state_dict()),
+            "training_config": copy.deepcopy(config),
+            "rng_state": {"torch": torch.get_rng_state().clone(), "python": random.getstate(),
+                          "numpy": {"name": numpy_state[0], "keys": numpy_state[1].tolist(),
+                                    "position": numpy_state[2], "has_gauss": numpy_state[3],
+                                    "cached_gaussian": numpy_state[4]},
+                          "loader_generator": loader.generator.get_state().clone()}}
+
+
+def restore_training_checkpoint(path, dataset):
+    model, checkpoint = load_checkpoint(path)
+    if checkpoint["artifact_version"] != 2 or "optimizer_state_dict" not in checkpoint:
+        raise ValueError("Checkpoint has no optimizer/RNG state; it cannot resume training.")
+    config = checkpoint["training_config"]
+    if config["optimizer"] != "Adam":
+        raise ValueError("Only Adam checkpoints are supported.")
+    if dataset.features.shape[1] != model.hidden.in_features:
+        raise ValueError("Training features do not match the checkpoint architecture.")
+    torch.set_num_threads(config["threads"])
+    torch.use_deterministic_algorithms(True)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config["learning_rate"],
+                                 weight_decay=config["weight_decay"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    loader = make_loader(dataset, config["batch_size"], shuffle=True, seed=config["seed"])
+    state = checkpoint["rng_state"]
+    random.setstate(state["python"])
+    ns = state["numpy"]
+    np.random.set_state((ns["name"], np.asarray(ns["keys"], dtype=np.uint32), ns["position"],
+                         ns["has_gauss"], ns["cached_gaussian"]))
+    # Model construction consumes RNG; restore only after model/optimizer/loader exist.
+    torch.set_rng_state(state["torch"])
+    loader.generator.set_state(state["loader_generator"])
+    return model, optimizer, loader, checkpoint
 
 
 def predict_clean_texts(run_dir, texts, batch_size=128):
@@ -123,7 +176,7 @@ def predict_clean_texts(run_dir, texts, batch_size=128):
     selection = json.loads((run_dir / "selection.json").read_text(encoding="utf-8"))
     model, checkpoint = load_checkpoint(run_dir / selection["checkpoint"])
     vectorizer = joblib.load(run_dir / "tfidf.joblib")
-    if len(vectorizer.vocabulary_) != checkpoint["vocabulary_size"]:
+    if len(vectorizer.vocabulary_) != model.hidden.in_features:
         raise ValueError("Vectorizer/checkpoint dimension mismatch.")
     if not texts:
         return []

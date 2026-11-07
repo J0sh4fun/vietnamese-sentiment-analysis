@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "release_id": "baseline-v1.0.0",
+  "verification_date_local": "2026-11-07",
+  "timezone": "Asia/Bangkok",
+  "git_ref": "refs/tags/baseline-v1.0.0",
+  "profile": {
+    "python": "3.13.5",
+    "platform": "Windows",
+    "bits": 64,
+    "device": "cpu",
+    "fresh_virtualenv": true,
+    "same_host_not_fresh_os": true
+  },
+  "files": {
+    "requirements/locks/windows-py313-cpu.txt": {
+      "sha256": "69f80060b8c20896c2fa2c8d083c006dcb40f7deb60168453790ce60c5c9241b",
+      "size_bytes": 7065
+    },
+    "requirements/locks/windows-py313-transformer.txt": {
+      "sha256": "600bdddb14e232b109b48c954a5689b0b7cd4acc5ea06cf5b6b7e3b79c26d8a8",
+      "size_bytes": 8140
+    },
+    "configs/baseline-v1.0.0.json": {
+      "sha256": "90106cc50c4a3ac6915680b298e566d222dc98b12f5b5f513b6e7b42e97b24c8",
+      "size_bytes": 2537
+    }
+  },
+  "data": {
+    "dataset_ref": "dduongdev/shopee-vietnamese-product-reviews-sentiment",
+    "version": 1,
+    "url": "https://www.kaggle.com/api/v1/datasets/download/dduongdev/shopee-vietnamese-product-reviews-sentiment?datasetVersionNumber=1",
+    "license_declared": "Apache 2.0",
+    "text_column": "review",
+    "label_column": "label",
+    "labels": {
+      "negative": 0,
+      "positive": 1
+    },
+    "files": {
+      "shopee_reviews_dataset.jsonl": {
+        "sha256": "9e9c1c19b68c9d758ad5b006ae65777f97fce0f6b8ed8bbd75fe368321c11270",
+        "rows": 9599
+      },
+      "aug_unaccented_reviews.jsonl": {
+        "sha256": "2125c656d29e05fb1b5c0f40ee042d2b94a1a5bd0fdda3916c8e880606db215d",
+        "rows": 1348
+      }
+    }
+  },
+  "split_sha256": {
+    "train_split.csv": "5a4e1a492f32d532090e462bb36db3373c22b8c078b324fb8aa8cdd0b400fcc6",
+    "validation_split.csv": "ff1f197113875c8a57483648d21d1e66b00a8195f78de3b27b92762ce06526c9",
+    "test_split.csv": "ce1378a3aac65972ad97fded13746fdff51ec0e80554aa1d3f2b931dbb96afdc"
+  },
+  "rows": {
+    "train": 7660,
+    "validation": 958,
+    "historical_test": 958
+  },
+  "seed": 42,
+  "threads": 4,
+  "environment_check": {
+    "status": "OK",
+    "python": "3.13.5",
+    "platform": "Windows",
+    "isolated_venv": true,
+    "lock": {
+      "sha256": "69f80060b8c20896c2fa2c8d083c006dcb40f7deb60168453790ce60c5c9241b",
+      "size_bytes": 7065
+    },
+    "packages_checked": 70,
+    "seed": 42,
+    "threads": 4
+  },
+  "checks": {
+    "pip_check": "PASS",
+    "fresh_data_download_and_byte_identical_splits": "PASS",
+    "fixed_config_train_15_epochs_best_epoch_9": "PASS",
+    "new_process_raw_validation_evaluation": "PASS",
+    "new_process_raw_predict_two_reviews": "PASS",
+    "baseline_only_unittest": {
+      "run": 93,
+      "skipped": 6,
+      "result": "OK"
+    },
+    "with_optional_tokenizer_unittest": {
+      "run": 93,
+      "skipped": 0,
+      "result": "OK",
+      "log": {
+        "sha256": "5481771762f6d9ba9240f222ad78abf71a0981af73dfcb27414fb8998da5c8b0",
+        "size_bytes": 20236
+      }
+    },
+    "optional_input_route_audit": {
+      "result": "PASS",
+      "train": 7660,
+      "validation": 958,
+      "train_truncated": 1,
+      "validation_truncated": 0
+    }
+  },
+  "trained_run": {
+    "path": "models/releases/baseline-v1.0.0",
+    "manifest": {
+      "sha256": "e42cefcf0061b24be08bc58352a89fc3f4e680fd861a4ddfcca5f996c068cd3e",
+      "size_bytes": 9973
+    },
+    "all_manifest_files_verified": 62
+  },
+  "metrics": [
+    {
+      "model": "ComplementNB",
+      "rows": "958",
+      "accuracy": "0.9269311064718163",
+      "macro_f1": "0.9230935080186429",
+      "f1_negative": "0.9402730375426621",
+      "f1_positive": "0.9059139784946236"
+    },
+    {
+      "model": "MLP",
+      "rows": "958",
+      "accuracy": "0.94258872651357",
+      "macro_f1": "0.9390446354304647",
+      "f1_negative": "0.9537426408746846",
+      "f1_positive": "0.9243466299862448"
+    }
+  ],
+  "mlp_training": {
+    "model": "dropout",
+    "seed": 42,
+    "name": "dropout",
+    "learning_rate": 0.001,
+    "dropout": 0.3,
+    "best_epoch": 9,
+    "epochs_run": 15,
+    "checkpoint": "dropout_best.pt",
+    "fit_seconds": 80.42263929999899,
+    "checkpoint_verified": true,
+    "loss": 0.16671672793171352,
+    "accuracy": 0.94258872651357,
+    "macro_f1": 0.9390446354304647
+  },
+  "evaluation_receipt": {
+    "release": {
+      "sha256": "e42cefcf0061b24be08bc58352a89fc3f4e680fd861a4ddfcca5f996c068cd3e",
+      "size_bytes": 9973
+    },
+    "split": "validation",
+    "rows": 958,
+    "split_fingerprint": {
+      "sha256": "ff1f197113875c8a57483648d21d1e66b00a8195f78de3b27b92762ce06526c9",
+      "size_bytes": 740720
+    },
+    "loaded_predictions_match": true,
+    "test_evaluated": false
+  },
+  "test_status": {
+    "historical_test": "consumed_before_release_not_evaluated_in_release",
+    "prospective_v2": "NOT_RUN"
+  },
+  "limitations": [
+    "Verified only on this Windows/Python/CPU profile.",
+    "Validation was used for model/epoch selection; metrics are reproduction checks.",
+    "No new independent test data are available."
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "baseline_id": "baseline_v1_20261107",
+  "rows": 958,
+  "same_labels": true,
+  "same_metrics": true,
+  "rtol": 1e-06,
+  "atol": 1e-07,
+  "max_abs_logits_diff": 0.0,
+  "manifest_sha256": "b946c473d2c0a82ebc7aeb8a8a9a60d39878cd8919f357297cfa143d401af983",
+  "executed_source": "D:\\My workspace\\Project\\AI\\vietnamese-sentiment-analysis\\models\\baselines\\baseline_v1_20261107\\source\\src\\frozen_baselines.py",
+  "new_test_accessed": false
+}

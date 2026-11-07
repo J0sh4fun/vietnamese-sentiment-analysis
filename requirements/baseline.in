@@ -1,0 +1,11 @@
+# Windows x64 / CPython 3.13 / CPU release roots.
+-c constraints-windows-py313-cpu.txt
+numpy==2.5.1
+scipy==1.18.0
+pandas==3.0.3
+scikit-learn==1.9.0
+underthesea==9.5.0
+joblib==1.5.3
+streamlit==1.59.2
+torch @ https://download-r2.pytorch.org/whl/cpu/torch-2.15.0%2Bcpu-cp313-cp313-win_amd64.whl#sha256=086f79c78c941b428410dc15f898ce2420a4580ae6983ea314692d71ce76c619
+matplotlib==3.11.0

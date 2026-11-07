@@ -1,0 +1,2 @@
+# Optional complete profile; includes the same baseline pins plus tokenizer stack.
+-r requirements/locks/windows-py313-transformer.txt

@@ -6,13 +6,14 @@ Reproducible Vietnamese review classification with **ComplementNB** and a **PyTo
 
 **`baseline-v1.0.0`: Windows x64, CPython 3.13.5, CPU.** This is the tested profile. The wheel lock is intentionally platform-specific; Linux/macOS, other Python versions and CUDA builds are not verified by this release. Install Python 3.13.5 before following these PowerShell commands from the repository root.
 
-The current release does not require pre-existing files under `models/`, a Kaggle account, an API key, Transformer weights, or the old experiment bundle. Internet access is needed to install wheels and fetch the public dataset on first preparation. Verified local data/archive can be used offline afterward. The release tag and ZIPs are currently local; the tag has not been pushed to GitHub. Use the delivered source ZIP on another machine, or clone the local tagged repository.
+The current checkout includes CI and benchmark additions after the frozen `baseline-v1.0.0` snapshot. Follow the commands below from this checkout for the current tests/CI. The frozen source ZIP reproduces the older release and its recorded 93-test suite; it does not contain the later CI/benchmark additions. The tag and ZIPs remain local until published.
+
+No pre-existing files under `models/`, Kaggle account, API key, Transformer weights or old experiment bundle are required. Internet access is needed to install wheels and fetch the public dataset on first preparation. Verified local data/archive can be used offline afterward.
 
 ## 1. Create a clean environment
 
 ```powershell
-Expand-Archive -LiteralPath ./baseline-v1.0.0-source.zip -DestinationPath ./vietnamese-sentiment-analysis
-cd vietnamese-sentiment-analysis
+# Open PowerShell at the root of the current source checkout.
 py -3.13 -m venv .venv
 .venv/Scripts/python.exe -m pip install --require-hashes -r requirements.txt
 .venv/Scripts/python.exe -m pip check
@@ -20,6 +21,8 @@ py -3.13 -m venv .venv
 ```
 
 `doctor` checks Python/platform, all 70 locked runtime distributions and the CPU Torch build. `.python-version` records 3.13.5. `requirements.txt` includes the full transitive wheel-hash lock, including the official PyTorch CPU wheel. It does not install optional Transformer packages. Installing into an existing environment can retain unrelated packages; use a new virtualenv for the release checks.
+
+**PyTorch 2.15.0+cpu and matplotlib are required baseline dependencies**, already installed by this lock. Do not add an unpinned `pip install torch` step. Only the Transformers/tokenizer stack is optional; it uses the separate full lock below.
 
 ## 2. Download, verify and prepare data
 
@@ -86,34 +89,73 @@ These are reproducibility checks, not independent generalization estimates. Runt
 .venv/Scripts/python.exe -B -m src.release_baseline predict --run-dir models/releases/baseline-v1.0.0 --text "Sản phẩm không tốt" "Giao hàng nhanh, chất lượng tốt!"
 ```
 
-The command returns both models' labels and uncalibrated probabilities; MLP also returns logits and explicit empty/OOV warnings. Do not preprocess input yourself. Empty and zero-feature strings are retained; their predictions use learned biases and are not evidence of sentiment.
+The command returns both models' labels and uncalibrated probabilities; MLP also returns logits and explicit empty/OOV warnings. Do not preprocess input yourself. Empty and zero-feature strings are retained; the resulting classifier defaults (MLP biases or NB zero-feature scores/tie behavior) are not evidence of sentiment.
 
-Python API:
+Python APIs use different artifact types:
 
 ```python
+from src.inference import load_model
 from src.mlp_pipeline import load_pipeline
-model = load_pipeline("models/releases/baseline-v1.0.0/artifacts/mlp")
-results = model.infer(["Sản phẩm không tốt", "!!!", ""], include_probabilities=True)
+
+nb = load_model("models/releases/baseline-v1.0.0/artifacts/complement_nb.joblib")
+mlp = load_pipeline("models/releases/baseline-v1.0.0/artifacts/mlp")
+reviews = ["Sản phẩm không tốt", "!!!", ""]  # raw text, no prior clean_text
+nb_results = nb.infer(reviews, include_probabilities=True)
+mlp_results = mlp.infer(reviews, include_probabilities=True, include_logits=True)
 ```
 
-For the existing Streamlit demo, set `SENTIMENT_MODEL_PATH` to `models/releases/baseline-v1.0.0/artifacts/complement_nb.joblib` and run `.venv/Scripts/python.exe -m streamlit run app.py`. The current demo uses the NB loader; use the CLI/API for MLP.
+`load_model` expects the versioned raw-text NB joblib; `load_pipeline` expects the **whole MLP directory**, including `model.pt`, `tfidf.joblib`, `preprocessing.json` and `manifest.json`. A `.pt` file alone cannot predict raw reviews. Use artifacts produced by this project and preserve their manifests. Training checkpoints with optimizer/RNG state are separate from inference bundles; resume with `src.resume_mlp`, not the inference loader.
+
+The Streamlit demo uses the NB loader; MLP is available through the CLI/API:
+
+```powershell
+$env:SENTIMENT_MODEL_PATH = "models/releases/baseline-v1.0.0/artifacts/complement_nb.joblib"
+.venv/Scripts/python.exe -m streamlit run app.py
+```
 
 ## Tests and optional Transformer input route
 
 ```powershell
-.venv/Scripts/python.exe -B -m unittest discover -s tests -v
+.venv/Scripts/python.exe -B tools/run_tests.py --profile baseline --report work/ci/local-baseline-tests.json
 ```
 
-Baseline tests need no old model/data bundle. The six optional Transformer route tests skip unless tokenizer assets and the optional stack are present. To enable them after baseline training:
+The current source discovers **103 tests**. With a clean baseline-only install, **96 execute and 7 skip**: six tokenizer/model-route tests and one local Transformer-adapter test. No old model/data bundle is required. The runner fails on empty/all-skipped discovery, assertions/import errors or a skip outside this exact allowlist; counts/reasons are written to JSON. Use a new report path for each run.
+
+To execute all 103 tests, complete baseline training first and install/prepare the optional assets:
 
 ```powershell
 .venv/Scripts/python.exe -m pip install --require-hashes -r requirements-transformer.txt
 .venv/Scripts/python.exe -B -m src.transformer_inputs --prepare
 .venv/Scripts/python.exe -B -m src.check_model_inputs --baseline models/releases/baseline-v1.0.0 --output-dir models/preprocessing_routes/release_01
-.venv/Scripts/python.exe -B -m unittest discover -s tests -v
+.venv/Scripts/python.exe -B tools/run_tests.py --profile full --report work/ci/local-full-tests.json
 ```
 
 The optional lock includes the same baseline versions plus the pinned tokenizer stack. XLM-R receives raw reviews directly, never TF-IDF `clean_text`; preprocessing/length requirements are documented in [the two-route report](docs/model_input_routes_20261107.md). No Transformer classifier is trained by this release workflow.
+
+The `full` profile requires **zero skipped tests**. It includes actual PyTorch forward/backward/checkpoint checks and tiny local XLM-R architecture/serialization checks. These tiny test weights do not establish sentiment quality. Dated experiment reports retain the test counts observed at their publication time; they are not the current suite count.
+
+## Continuous integration
+
+[`.github/workflows/tests.yml`](.github/workflows/tests.yml) runs on pushes, pull requests and manual dispatch, using **`windows-2025`, x64 CPython 3.13.5, CPU** and a fresh `.venv` in each job. Action revisions and dependency wheel hashes are pinned. The workflow replaces the previous echo-only Streamlit deployment status; it does not deploy the app.
+
+| Job | What actually runs | Expected current suite |
+|---|---|---|
+| `baseline` | Baseline hash-lock install, `pip check`, environment doctor, real unittest discovery | 103 discovered; 96 execute, 7 explicitly allowed skips |
+| `integration` | Optional hash-lock install, data download/hash/split verification, fixed NB+MLP training, new-process validation reload/logit check, raw prediction, pinned tokenizer preparation, full tests | 103 execute; every skip fails the job |
+
+Each external command is a separate PowerShell step so a nonzero exit fails the job. Tests produce JSON receipts, uploaded with integration config/hash/metric receipts even after a failure when available. Installation/download failures remain job failures; pip download caching does not substitute for running tests. No data/model cache, secrets, production deployment or new-test access is needed. The integration job depends on the public Kaggle/tokenizer endpoints being reachable.
+
+Run the same commands locally as shown above; see [CI verification and limitations](docs/ci_testing.md). A workflow file/local run does not establish a successful hosted Actions run; that status is available after these changes are pushed and the jobs finish.
+
+## Shared quality and cost benchmark
+
+The current source adds a common NB/MLP/local fine-tuned XLM-R evaluator, beyond the frozen v1.0.0 source ZIP. After preparing/training the baseline:
+
+```powershell
+.venv/Scripts/python.exe -B -m src.benchmark_models --run-dir models/releases/baseline-v1.0.0 --output-dir models/benchmarks/quality_cost_01 --batch-sizes 1 32 --warmup 5 --repeats 3 --benchmark-samples 256 --threads 4 --seed 42
+```
+
+It scores all old-validation rows and separately benchmarks raw-to-label versus classifier-only latency on a seeded subset. Reports include per-class metrics, confusion matrices, batch p50/p95, throughput, CPU/GPU/thread metadata, native peak RSS, GPU allocator peaks and artifact size. The Transformer row stays `NOT_RUN` until a compatible sentiment checkpoint is supplied. Standardized training time needs a bound `TrainingMeasurement` receipt; legacy train timings remain explicitly separate. See [measurement rules and results](docs/benchmark_quality_cost.md) and the [comparison table template](docs/templates/model_comparison.csv). The immutable v1.0.0 release and prospective test gate are unchanged.
 
 ## Versioning, artifacts and future evaluation
 

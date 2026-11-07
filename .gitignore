@@ -3,6 +3,7 @@ venv/
 env/
 .venv/
 .venv-release/
+.venv-ci/
 .env
 
 # Python autocompiler file / Optimized / DLL files

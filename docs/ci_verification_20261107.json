@@ -1,0 +1,520 @@
+{
+  "date_local": "2026-11-07",
+  "profile": "Windows x64 CPython 3.13.5 CPU",
+  "hosted_runner_configured": "windows-2025",
+  "hosted_actions_run": "NOT_RUN_CHANGES_NOT_PUSHED",
+  "local_platform": "Windows-11-10.0.26200-SP0",
+  "source_copy": "work/ci_validation_20261107",
+  "started_without_data_or_model_artifacts": true,
+  "fresh_virtualenv": true,
+  "environment_validation": "Baseline-only lock first; optional lock then added in the same isolated local venv. Hosted jobs each create their own fresh venv.",
+  "workflow_lint": {
+    "tool": "actionlint",
+    "version": "1.7.12",
+    "exit_code": 0,
+    "binary_download_checksum_verified": true,
+    "workflow": {
+      "sha256": "88c88a1603e87f6206b27961eae223ac3821589eae03007ac28ea1a77cb9a1a2",
+      "size_bytes": 4811
+    }
+  },
+  "lock_files": {
+    "requirements/locks/windows-py313-cpu.txt": {
+      "sha256": "69f80060b8c20896c2fa2c8d083c006dcb40f7deb60168453790ce60c5c9241b",
+      "size_bytes": 7065
+    },
+    "requirements/locks/windows-py313-transformer.txt": {
+      "sha256": "600bdddb14e232b109b48c954a5689b0b7cd4acc5ea06cf5b6b7e3b79c26d8a8",
+      "size_bytes": 8140
+    }
+  },
+  "source_files_match_current_runtime_sources": true,
+  "source_fingerprints": {
+    ".github/workflows/tests.yml": {
+      "sha256": "88c88a1603e87f6206b27961eae223ac3821589eae03007ac28ea1a77cb9a1a2",
+      "size_bytes": 4811
+    },
+    "src/benchmarking.py": {
+      "sha256": "02d6de9c9627585669edfa2690bf1711464d5e8788036f36f379c5af66a68e3a",
+      "size_bytes": 7884
+    },
+    "src/benchmark_models.py": {
+      "sha256": "0a24506b133b8617eff6b5d1ae4832491012bb1a7ee581bd8cd5192620423675",
+      "size_bytes": 19236
+    },
+    "src/check_model_inputs.py": {
+      "sha256": "a94c79785ad911dc9448e848ac8a2f3adbf6ba97358c59f50d39abc5ef3086c8",
+      "size_bytes": 7291
+    },
+    "src/data_pipeline.py": {
+      "sha256": "8d46baef203cb7e2bca0cd115d48667a70aea5d25811aa088bde8e4df6a0ff57",
+      "size_bytes": 13565
+    },
+    "src/evaluate.py": {
+      "sha256": "6c772c62add61a4dcc4befecb9435f2debec3ddbfde382ea22dc7d270d83d6cc",
+      "size_bytes": 7642
+    },
+    "src/evaluate_baseline_v2.py": {
+      "sha256": "c4b7c91ba2f0009adba3ba761631a58b5d1480a490702273af8620e2fa7661a0",
+      "size_bytes": 10161
+    },
+    "src/experiments.py": {
+      "sha256": "f0988de7c4247ffec4c02cdf5968a584a1faf24708fb6145e56e89313def5192",
+      "size_bytes": 6850
+    },
+    "src/frozen_baselines.py": {
+      "sha256": "08bf18eda548c35bdf2a4b3716b1f57c49e311685ff0a0e3b5bcb8b9cd5a1b2c",
+      "size_bytes": 17697
+    },
+    "src/inference.py": {
+      "sha256": "dc6ab0dec9febbb82c89d842045bbd4878525dbbc3278eaa5036b95a9935041e",
+      "size_bytes": 4747
+    },
+    "src/mlp.py": {
+      "sha256": "c5950eef7c17ea92b04a8d4d13adb40a9b7045ed728bc0432b80accdc0d41eb5",
+      "size_bytes": 9051
+    },
+    "src/mlp_pipeline.py": {
+      "sha256": "edb5919dde7ac13dc4c667ba82c49cf5ec984f6542dbc180fb1a46a97217989a",
+      "size_bytes": 7494
+    },
+    "src/package_mlp.py": {
+      "sha256": "e8f1a7e488d8a34757f4ae14e95e358b896007c6f4bf2e673c5cc24f562c3390",
+      "size_bytes": 26082
+    },
+    "src/predict.py": {
+      "sha256": "46a716a7af8ba8e308310506710f4fc14d4f5750ba09c78e79601bfe05bcee00",
+      "size_bytes": 997
+    },
+    "src/prepare_data.py": {
+      "sha256": "a304e8265c4741a8e99116a90a0ed903df16889effdaf45b43f27a041ef3a06a",
+      "size_bytes": 6843
+    },
+    "src/preprocessor.py": {
+      "sha256": "ee5ec64b9963e44275b9e1f4fd44531c155b8eda9aaa1d3749a5a9fcc20600b3",
+      "size_bytes": 10372
+    },
+    "src/release_baseline.py": {
+      "sha256": "710b3a75e3a3c8bbc60cda2895ccb5178246b6893c07beb53de51de16cd08853",
+      "size_bytes": 13934
+    },
+    "src/release_config.py": {
+      "sha256": "854ebd58b52e64533c129e4cfd54462ee15721c64076736c381c6f444cf2d43e",
+      "size_bytes": 1626
+    },
+    "src/resume_mlp.py": {
+      "sha256": "6b027380d52781362019aedc4fdb85dcbc391e027edfcad55cd2afcaccd77110",
+      "size_bytes": 3350
+    },
+    "src/review_inputs.py": {
+      "sha256": "f008ee2f8641c439c76ef2bc08eff111bfca289dc17508bed82811d8d5f618c2",
+      "size_bytes": 3569
+    },
+    "src/run_evaluation.py": {
+      "sha256": "d80b6622115f7906b91725f0dc1c95f0b0ce339f5e31f48e8975987f91a5975c",
+      "size_bytes": 22550
+    },
+    "src/run_mlp.py": {
+      "sha256": "50000dadbdeb6d9e19a57abb611cc7bd85696b3ff7e8b192e2f3ac33adc8e758",
+      "size_bytes": 17014
+    },
+    "src/tfidf_inputs.py": {
+      "sha256": "31208e48208f66b3c38909a59426dd5f0752d3a46b0450ad0151dda62cb30338",
+      "size_bytes": 2171
+    },
+    "src/train.py": {
+      "sha256": "bdf10f89adeb270983bf98f1b826af6dbb586fdd8df21c7762ed2acec7bae42b",
+      "size_bytes": 20521
+    },
+    "src/transformer_inputs.py": {
+      "sha256": "c2e61e2188d6d79ac974b9429ffe5ea042ec11b52efdf266dc0b59edda99b8fa",
+      "size_bytes": 9937
+    },
+    "tests/test_benchmarking.py": {
+      "sha256": "ca69cb5730337ebc9ed53726633b03a799fa7d9418e448b3623e773f040e5427",
+      "size_bytes": 7071
+    },
+    "tests/test_ci_runner.py": {
+      "sha256": "3a1cdd92d5b925f6cbf843435a8dfc1051501fca7a1b0fc1204153c852b3c786",
+      "size_bytes": 1960
+    },
+    "tests/test_data_leakage.py": {
+      "sha256": "35218e92ba9ad08963454dda26225293be0533d077ee5d55b1cbfadcf91147b1",
+      "size_bytes": 14206
+    },
+    "tests/test_evaluation_workflow.py": {
+      "sha256": "075ee853a8d92d252348841009c82c7c8034d7e09d8405502d77ebcc5cc22031",
+      "size_bytes": 8363
+    },
+    "tests/test_experiments.py": {
+      "sha256": "992f91fc56594c1d98eb3632af3029ebc766d345b3e2838d6a637a1d7a2f0624",
+      "size_bytes": 9510
+    },
+    "tests/test_frozen_baselines.py": {
+      "sha256": "5c8135d58644c8b0b67f4f42cc605af722ab1425acb61ff87dbea47ac996ae65",
+      "size_bytes": 6126
+    },
+    "tests/test_inference.py": {
+      "sha256": "5ff935258596ad55f009c27e3244840169fc8bb55fe4e4836c3ec3a7203ddedd",
+      "size_bytes": 10033
+    },
+    "tests/test_mlp.py": {
+      "sha256": "5f71fbaa3500b69e5efcd1e84b94a13724b2932bfe9b868a8969c889a504faa8",
+      "size_bytes": 4462
+    },
+    "tests/test_mlp_pipeline.py": {
+      "sha256": "8158d64d2d0902fda339e8df2f038f20111d454730a100ac8bdd85279ce8ad48",
+      "size_bytes": 7611
+    },
+    "tests/test_model_inputs.py": {
+      "sha256": "754eda746874e0af1aff8bd2860c384b7bf81669f3dfa1588a7387e7d8ac9622",
+      "size_bytes": 8863
+    },
+    "tests/test_preprocessing_integration.py": {
+      "sha256": "260321148c5e96be13cf7270dc430899ad7d34a53ba646c63f01481f53dbf9cc",
+      "size_bytes": 4209
+    },
+    "tests/test_preprocessor.py": {
+      "sha256": "cb735ef6092250a3581ac8c2ef0f38f4c1dba965ca72c3a6f58fdbbf6242496c",
+      "size_bytes": 7450
+    },
+    "tests/test_release_workflow.py": {
+      "sha256": "f6933ca6593d10da78cbb1efeec6411fe243d5b11d1106e7d6189d355b808c46",
+      "size_bytes": 3757
+    },
+    "tools/lock_wheels.py": {
+      "sha256": "66a358476d216a71e72fc09f9b16bd875caf27da32113a5f3357a81a4cbafbe5",
+      "size_bytes": 2233
+    },
+    "tools/run_tests.py": {
+      "sha256": "7f051a775cd3e00d7f568fa31254d49fa662f1e2438feb28198705244162e829",
+      "size_bytes": 3549
+    },
+    "assets/vietnamese_stopwords.py": {
+      "sha256": "a065abcf68a4fffc139ae8117d5d541f88cf9be0824a03a1d6586b2b6780dc33",
+      "size_bytes": 36042
+    }
+  },
+  "baseline_test_receipt": {
+    "profile": "baseline",
+    "status": "PASS",
+    "tests_run": 103,
+    "tests_executed": 96,
+    "failures": [],
+    "errors": [],
+    "skipped": [
+      {
+        "test": "test_benchmarking.BenchmarkTests.test_transformer_adapter_loads_local_weights_and_obeys_saved_class_order",
+        "reason": "optional Transformer stack absent"
+      },
+      {
+        "test": "test_model_inputs.ModelFamilyRouteTests.test_batch_token_ids_match_individual_calls_and_boundaries",
+        "reason": "Install optional Transformer requirements and prepare local pinned tokenizer/baseline"
+      },
+      {
+        "test": "test_model_inputs.ModelFamilyRouteTests.test_changed_profile_is_rejected",
+        "reason": "Install optional Transformer requirements and prepare local pinned tokenizer/baseline"
+      },
+      {
+        "test": "test_model_inputs.ModelFamilyRouteTests.test_empty_punctuation_oov_and_dynamic_padding_keep_samples",
+        "reason": "Install optional Transformer requirements and prepare local pinned tokenizer/baseline"
+      },
+      {
+        "test": "test_model_inputs.ModelFamilyRouteTests.test_exact_boundary_and_overflow_audit_preserve_one_row_per_review",
+        "reason": "Install optional Transformer requirements and prepare local pinned tokenizer/baseline"
+      },
+      {
+        "test": "test_model_inputs.ModelFamilyRouteTests.test_real_token_ids_fit_xlmr_architecture_at_512_without_downloading_weights",
+        "reason": "Install optional Transformer requirements and prepare local pinned tokenizer/baseline"
+      },
+      {
+        "test": "test_model_inputs.ModelFamilyRouteTests.test_transformer_receives_original_case_punctuation_emoji_once_without_tfidf_processor",
+        "reason": "Install optional Transformer requirements and prepare local pinned tokenizer/baseline"
+      }
+    ],
+    "unexpected_skips": [],
+    "unexpected_successes": [],
+    "expected_failures": [],
+    "seconds": 13.677794100003666,
+    "python": "3.13.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "isolated_venv": true
+  },
+  "full_test_receipt": {
+    "profile": "full",
+    "status": "PASS",
+    "tests_run": 103,
+    "tests_executed": 103,
+    "failures": [],
+    "errors": [],
+    "skipped": [],
+    "unexpected_skips": [],
+    "unexpected_successes": [],
+    "expected_failures": [],
+    "seconds": 27.143520999998145,
+    "python": "3.13.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "isolated_venv": true
+  },
+  "commands": {
+    "baseline": [
+      {
+        "args": [
+          "-c",
+          "import importlib.util; assert importlib.util.find_spec(\"transformers\") is None; print(\"Optional Transformers absent\")"
+        ],
+        "exit_code": 0,
+        "seconds": 0.054306500001985114
+      },
+      {
+        "args": [
+          "-m",
+          "pip",
+          "check"
+        ],
+        "exit_code": 0,
+        "seconds": 2.2100424000018393
+      },
+      {
+        "args": [
+          "-B",
+          "-m",
+          "src.release_baseline",
+          "doctor"
+        ],
+        "exit_code": 0,
+        "seconds": 20.417573200000334
+      },
+      {
+        "args": [
+          "-B",
+          "tools/run_tests.py",
+          "--profile",
+          "baseline",
+          "--report",
+          "work/ci/baseline-tests.json"
+        ],
+        "exit_code": 0,
+        "seconds": 20.021215100001427
+      }
+    ],
+    "integration": [
+      {
+        "args": [
+          "-m",
+          "pip",
+          "install",
+          "--require-hashes",
+          "-r",
+          "requirements-transformer.txt"
+        ],
+        "exit_code": 0,
+        "seconds": 62.859529100001964
+      },
+      {
+        "args": [
+          "-m",
+          "pip",
+          "check"
+        ],
+        "exit_code": 0,
+        "seconds": 1.1964612000010675
+      },
+      {
+        "args": [
+          "-B",
+          "-m",
+          "src.release_baseline",
+          "doctor"
+        ],
+        "exit_code": 0,
+        "seconds": 11.958124099997804
+      },
+      {
+        "args": [
+          "-B",
+          "-m",
+          "src.prepare_data",
+          "--output-dir",
+          "data/prepared/baseline-v1.0.0"
+        ],
+        "exit_code": 0,
+        "seconds": 46.05888009999762
+      },
+      {
+        "args": [
+          "-B",
+          "-m",
+          "src.release_baseline",
+          "train",
+          "--output-dir",
+          "models/releases/baseline-v1.0.0"
+        ],
+        "exit_code": 0,
+        "seconds": 95.10046860000148
+      },
+      {
+        "args": [
+          "-B",
+          "-m",
+          "src.release_baseline",
+          "evaluate",
+          "--run-dir",
+          "models/releases/baseline-v1.0.0",
+          "--split",
+          "validation",
+          "--output-dir",
+          "models/ci/validation"
+        ],
+        "exit_code": 0,
+        "seconds": 16.82633519999945
+      },
+      {
+        "args": [
+          "-B",
+          "-m",
+          "src.release_baseline",
+          "predict",
+          "--run-dir",
+          "models/releases/baseline-v1.0.0",
+          "--text",
+          "Sản phẩm không tốt",
+          "Giao hàng nhanh, chất lượng tốt!",
+          "--output-json",
+          "models/ci/predictions.json"
+        ],
+        "exit_code": 0,
+        "seconds": 8.643328099999053
+      },
+      {
+        "args": [
+          "-B",
+          "-m",
+          "src.transformer_inputs",
+          "--prepare"
+        ],
+        "exit_code": 0,
+        "seconds": 4.730848599996534
+      },
+      {
+        "args": [
+          "-B",
+          "tools/run_tests.py",
+          "--profile",
+          "full",
+          "--report",
+          "work/ci/full-tests.json"
+        ],
+        "exit_code": 0,
+        "seconds": 35.98583909999434
+      }
+    ]
+  },
+  "prepared_splits": {
+    "test_split.csv": {
+      "sha256": "ce1378a3aac65972ad97fded13746fdff51ec0e80554aa1d3f2b931dbb96afdc",
+      "size_bytes": 752225
+    },
+    "train_split.csv": {
+      "sha256": "5a4e1a492f32d532090e462bb36db3373c22b8c078b324fb8aa8cdd0b400fcc6",
+      "size_bytes": 6110434
+    },
+    "validation_split.csv": {
+      "sha256": "ff1f197113875c8a57483648d21d1e66b00a8195f78de3b27b92762ce06526c9",
+      "size_bytes": 740720
+    }
+  },
+  "new_training_run_manifest": {
+    "sha256": "43f23b00ab49f98ff27eba7f4138c77e26ca9887ffee33e2cf9d4dd2032982d9",
+    "size_bytes": 10925
+  },
+  "reload_receipt": {
+    "release": {
+      "sha256": "43f23b00ab49f98ff27eba7f4138c77e26ca9887ffee33e2cf9d4dd2032982d9",
+      "size_bytes": 10925
+    },
+    "split": "validation",
+    "rows": 958,
+    "split_fingerprint": {
+      "sha256": "ff1f197113875c8a57483648d21d1e66b00a8195f78de3b27b92762ce06526c9",
+      "size_bytes": 740720
+    },
+    "loaded_predictions_match": true,
+    "test_evaluated": false
+  },
+  "validation_metrics": [
+    {
+      "model": "ComplementNB",
+      "rows": "958",
+      "accuracy": "0.9269311064718163",
+      "macro_f1": "0.9230935080186429",
+      "f1_negative": "0.9402730375426621",
+      "f1_positive": "0.9059139784946236"
+    },
+    {
+      "model": "MLP",
+      "rows": "958",
+      "accuracy": "0.94258872651357",
+      "macro_f1": "0.9390446354304647",
+      "f1_negative": "0.9537426408746846",
+      "f1_positive": "0.9243466299862448"
+    }
+  ],
+  "raw_predictions": [
+    {
+      "review": "Sản phẩm không tốt",
+      "ComplementNB": {
+        "label": "negative",
+        "empty_after_preprocessing": false,
+        "probabilities": {
+          "negative": 0.7854881387828653,
+          "positive": 0.21451186121713622
+        },
+        "probability_kind": "uncalibrated"
+      },
+      "MLP": {
+        "label": "negative",
+        "empty_after_preprocessing": false,
+        "no_known_features": false,
+        "warnings": [],
+        "probabilities": {
+          "negative": 0.9836487770080566,
+          "positive": 0.01635119877755642
+        },
+        "probability_kind": "uncalibrated",
+        "logits": [
+          2.148411750793457,
+          -1.9485560655593872
+        ]
+      }
+    },
+    {
+      "review": "Giao hàng nhanh, chất lượng tốt!",
+      "ComplementNB": {
+        "label": "positive",
+        "empty_after_preprocessing": false,
+        "probabilities": {
+          "negative": 0.014979713313633293,
+          "positive": 0.9850202866863681
+        },
+        "probability_kind": "uncalibrated"
+      },
+      "MLP": {
+        "label": "positive",
+        "empty_after_preprocessing": false,
+        "no_known_features": false,
+        "warnings": [],
+        "probabilities": {
+          "negative": 0.0039856284856796265,
+          "positive": 0.9960143566131592
+        },
+        "probability_kind": "uncalibrated",
+        "logits": [
+          -2.783127546310425,
+          2.7379391193389893
+        ]
+      }
+    }
+  ],
+  "prospective_v2_test": "NOT_RUN"
+}

@@ -1,0 +1,13 @@
+model,status,split_sha256,rows,macro_f1,accuracy,precision_negative,recall_negative,f1_negative,support_negative,precision_positive,recall_positive,f1_positive,support_positive,device,cpu,gpu,threads,batch_size,mode,preprocessing_included,warmup_batches,repeats,benchmark_reviews,batch_p50_ms,batch_p95_ms,amortized_ms_per_review,throughput_reviews_per_second,load_seconds,rss_after_load_mib,process_lifetime_peak_rss_mib,gpu_peak_allocated_mib,gpu_peak_reserved_mib,inference_artifact_mib,train_wall_seconds,train_peak_rss_mib,train_device,training_status,legacy_train_seconds,legacy_train_scope,result_json
+ComplementNB,NOT_RUN,,,,,,,,,,,,,cpu,,,4,1,end_to_end,True,5,3,256,,,,,,,,,,,,,,NOT_MEASURED_UNDER_COMMON_SCOPE,,,
+ComplementNB,NOT_RUN,,,,,,,,,,,,,cpu,,,4,1,classifier_only,False,5,3,256,,,,,,,,,,,,,,NOT_MEASURED_UNDER_COMMON_SCOPE,,,
+ComplementNB,NOT_RUN,,,,,,,,,,,,,cpu,,,4,32,end_to_end,True,5,3,256,,,,,,,,,,,,,,NOT_MEASURED_UNDER_COMMON_SCOPE,,,
+ComplementNB,NOT_RUN,,,,,,,,,,,,,cpu,,,4,32,classifier_only,False,5,3,256,,,,,,,,,,,,,,NOT_MEASURED_UNDER_COMMON_SCOPE,,,
+MLP,NOT_RUN,,,,,,,,,,,,,cpu,,,4,1,end_to_end,True,5,3,256,,,,,,,,,,,,,,NOT_MEASURED_UNDER_COMMON_SCOPE,,,
+MLP,NOT_RUN,,,,,,,,,,,,,cpu,,,4,1,classifier_only,False,5,3,256,,,,,,,,,,,,,,NOT_MEASURED_UNDER_COMMON_SCOPE,,,
+MLP,NOT_RUN,,,,,,,,,,,,,cpu,,,4,32,end_to_end,True,5,3,256,,,,,,,,,,,,,,NOT_MEASURED_UNDER_COMMON_SCOPE,,,
+MLP,NOT_RUN,,,,,,,,,,,,,cpu,,,4,32,classifier_only,False,5,3,256,,,,,,,,,,,,,,NOT_MEASURED_UNDER_COMMON_SCOPE,,,
+Transformer,NOT_RUN,,,,,,,,,,,,,cpu,,,4,1,end_to_end,True,5,3,256,,,,,,,,,,,,,,NOT_MEASURED_UNDER_COMMON_SCOPE,,,
+Transformer,NOT_RUN,,,,,,,,,,,,,cpu,,,4,1,classifier_only,False,5,3,256,,,,,,,,,,,,,,NOT_MEASURED_UNDER_COMMON_SCOPE,,,
+Transformer,NOT_RUN,,,,,,,,,,,,,cpu,,,4,32,end_to_end,True,5,3,256,,,,,,,,,,,,,,NOT_MEASURED_UNDER_COMMON_SCOPE,,,
+Transformer,NOT_RUN,,,,,,,,,,,,,cpu,,,4,32,classifier_only,False,5,3,256,,,,,,,,,,,,,,NOT_MEASURED_UNDER_COMMON_SCOPE,,,

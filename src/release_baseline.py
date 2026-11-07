@@ -162,7 +162,7 @@ def train(config_path, split_dir, output_dir):
         "environment": environment_snapshot(), "code": code_snapshot(), "data": split_manifest["files"]}
     write_json(output_dir / "metadata.json", metadata)
     # Preserve actual code and lock/config files for this run, even before a Git commit.
-    for name in ("src", "assets", "tests", "configs", "requirements"):
+    for name in ("src", "assets", "tests", "tools", "configs", "requirements"):
         for path in sorted((ROOT / name).rglob("*")):
             if path.is_file() and "__pycache__" not in path.parts:
                 target = output_dir / "source" / path.relative_to(ROOT)

@@ -1,0 +1,114 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  PYTHONHASHSEED: '42'
+  PYTHONUTF8: '1'
+  TOKENIZERS_PARALLELISM: 'false'
+  OMP_NUM_THREADS: '4'
+  MKL_NUM_THREADS: '4'
+  OPENBLAS_NUM_THREADS: '4'
+
+jobs:
+  baseline:
+    name: Baseline tests (Windows / Python 3.13.5 / CPU)
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.13.5'
+          architecture: x64
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements/locks/windows-py313-cpu.txt
+      - name: Create isolated environment
+        run: python -m venv .venv
+      - name: Install hash-locked baseline dependencies
+        run: .venv/Scripts/python.exe -m pip install --require-hashes -r requirements.txt
+      - name: Check dependencies
+        run: .venv/Scripts/python.exe -m pip check
+      - name: Check release environment
+        run: .venv/Scripts/python.exe -B -m src.release_baseline doctor
+      - name: Run real baseline tests
+        run: .venv/Scripts/python.exe -B tools/run_tests.py --profile baseline --report work/ci/baseline-tests.json
+      - name: Upload test receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: baseline-test-receipt
+          path: work/ci/baseline-tests.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  integration:
+    name: Train / reload / predict / full tests (Windows CPU)
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.13.5'
+          architecture: x64
+          cache: pip
+          cache-dependency-path: |
+            requirements-transformer.txt
+            requirements/locks/windows-py313-transformer.txt
+      - name: Create isolated environment
+        run: python -m venv .venv
+      - name: Install hash-locked baseline and Transformer dependencies
+        run: .venv/Scripts/python.exe -m pip install --require-hashes -r requirements-transformer.txt
+      - name: Check dependencies
+        run: .venv/Scripts/python.exe -m pip check
+      - name: Check release environment
+        run: .venv/Scripts/python.exe -B -m src.release_baseline doctor
+      - name: Download and verify public-v1 data and historical splits
+        run: .venv/Scripts/python.exe -B -m src.prepare_data --output-dir data/prepared/baseline-v1.0.0
+      - name: Train fixed NB and PyTorch MLP baselines
+        run: .venv/Scripts/python.exe -B -m src.release_baseline train --output-dir models/releases/baseline-v1.0.0
+      - name: Verify reloaded validation labels and logits in a new process
+        run: .venv/Scripts/python.exe -B -m src.release_baseline evaluate --run-dir models/releases/baseline-v1.0.0 --split validation --output-dir models/ci/validation
+      - name: Predict raw reviews in a new process
+        run: .venv/Scripts/python.exe -B -m src.release_baseline predict --run-dir models/releases/baseline-v1.0.0 --text "Sản phẩm không tốt" "Giao hàng nhanh, chất lượng tốt!" --output-json models/ci/predictions.json
+      - name: Download and verify pinned tokenizer assets (no pretrained weights)
+        run: .venv/Scripts/python.exe -B -m src.transformer_inputs --prepare
+      - name: Run all tests and reject every skip
+        run: .venv/Scripts/python.exe -B tools/run_tests.py --profile full --report work/ci/full-tests.json
+      - name: Upload verification receipts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: integration-verification-receipts
+          path: |
+            work/ci/full-tests.json
+            data/prepared/baseline-v1.0.0/splits/split_manifest.json
+            models/releases/baseline-v1.0.0/environment_check.json
+            models/releases/baseline-v1.0.0/metadata.json
+            models/releases/baseline-v1.0.0/release_manifest.json
+            models/releases/baseline-v1.0.0/validation/comparison.csv
+            models/ci/validation/evaluation_receipt.json
+            models/ci/predictions.json
+          if-no-files-found: warn
+          retention-days: 14
